@@ -971,6 +971,29 @@ impl SongScene {
             update_fn
         });
 
+        // DGHub 判定联动：若开启，起后台会话并把其 update_fn 与多人 live 的串联。
+        let update_fn = {
+            let cfg = &get_data().config;
+            let dghub_fn = if cfg.dghub_enable {
+                let token = if cfg.dghub_token.is_empty() { None } else { Some(cfg.dghub_token.clone()) };
+                let handle = crate::dghub::spawn(cfg.dghub_host.clone(), cfg.dghub_port, token);
+                Some(crate::dghub::build_update_fn(handle, |ev| {
+                    use crate::dghub::DghubEvent;
+                    match ev {
+                        DghubEvent::Connected => {
+                            show_message("DGHub 已连接").duration(1.5).ok();
+                        }
+                        DghubEvent::Disconnected(reason) => {
+                            show_message(format!("DGHub 断开：{reason}。在设置中重新开关以重连")).warn();
+                        }
+                    }
+                }))
+            } else {
+                None
+            };
+            crate::dghub::chain_update_fns(update_fn, dghub_fn)
+        };
+
         let save_fn: Option<SaveFn> = Some(Box::new({
             let local_path = local_path.to_string();
             move |new_rec| -> Result<()> {

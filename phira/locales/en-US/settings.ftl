@@ -34,6 +34,16 @@ item-anys-gateway = Anys Gateway
 item-anys-gateway-sub = Use a custom Anys gateway address.
 item-anys-gateway-invalid = Invalid gateway address.
 
+item-dghub = DGHub Link
+item-dghub-sub = Drive DGHub triggers from Perfect/Good/Bad/Miss judgements (configure mapping in DGHub).
+item-dghub-host = DGHub Host
+item-dghub-host-sub = DGHub API host, usually 127.0.0.1.
+item-dghub-port = DGHub Port
+item-dghub-port-sub = DGHub API port, must match the port in DGHub settings.
+item-dghub-port-invalid = Invalid port.
+item-dghub-token = DGHub Token
+item-dghub-token-sub = Session token (leave empty to auto-fetch from DGHub).
+
 item-adjust = Automatic Time Adjustment
 item-adjust-sub = Adjust the audio and chart offset dynamically.
 item-music = Music Volume

@@ -1,0 +1,40 @@
+{
+  "id": "phira",
+  "name": "Phira 判定联动",
+  "version": "0.1.0",
+  "sdk": "1",
+  "author": "phira",
+  "description": "把 Phira 的 Perfect/Good/Bad/Miss 判定映射为电击触发。Phira 由你手动启动并自行连接，本插件只提供配置页（无 entry，不由 DGHub 启动）。",
+  "config_schema": [
+    {
+      "fields": [
+        { "type": "channel", "label": "输出通道", "default": "both" },
+        { "type": "number", "label": "节流(ms)", "default": 80, "min": 0, "max": 1000, "description": "同一判定档在该间隔内多次命中只触发一次" }
+      ]
+    },
+    {
+      "fields": [
+        { "type": "bool", "label": "Miss 触发", "default": true },
+        { "type": "percent", "label": "Miss 强度", "default": 60 },
+        { "type": "duration", "label": "Miss 时长", "default": 1.5 },
+        { "type": "preset", "label": "Miss 波形", "default": "CS2-受伤" }
+      ]
+    },
+    {
+      "fields": [
+        { "type": "bool", "label": "Bad 触发", "default": true },
+        { "type": "percent", "label": "Bad 强度", "default": 35 },
+        { "type": "duration", "label": "Bad 时长", "default": 1.0 },
+        { "type": "preset", "label": "Bad 波形", "default": "CS2-受伤" }
+      ]
+    },
+    {
+      "fields": [
+        { "type": "bool", "label": "Good 触发", "default": false },
+        { "type": "percent", "label": "Good 强度", "default": 20 },
+        { "type": "bool", "label": "Perfect 触发", "default": false },
+        { "type": "percent", "label": "Perfect 强度", "default": 10 }
+      ]
+    }
+  ]
+}

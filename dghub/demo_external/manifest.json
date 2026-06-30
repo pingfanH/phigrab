@@ -1,0 +1,22 @@
+{
+  "id": "demo_external",
+  "name": "示范插件 (Demo)",
+  "version": "0.1.0",
+  "sdk": "1",
+  "author": "DGHub",
+  "description": "最小 WebSocket 接入示例：启用后触发一次演示电击，供复制改写成自己的插件。",
+  "entry": "main.py",
+  "config_schema": [
+    {
+      "fields": [
+        { "type": "percent", "label": "演示强度", "default": 30, "description": "触发演示电击时的强度百分比" },
+        { "type": "channel", "label": "输出通道", "default": "both" }
+      ]
+    },
+    {
+      "fields": [
+        { "type": "bool", "label": "启用演示触发", "default": true, "description": "握手成功后自动触发一次示范波形" }
+      ]
+    }
+  ]
+}

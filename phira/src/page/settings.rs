@@ -400,6 +400,11 @@ struct GeneralList {
     enable_anys_btn: DRectButton,
     anys_gateway_btn: DRectButton,
 
+    dghub_btn: DRectButton,
+    dghub_host_btn: DRectButton,
+    dghub_port_btn: DRectButton,
+    dghub_token_btn: DRectButton,
+
     cache_size: Option<u64>,
     cache_task: Option<Task<Result<u64>>>,
 }
@@ -434,6 +439,11 @@ impl GeneralList {
             insecure_btn: DRectButton::new(),
             enable_anys_btn: DRectButton::new(),
             anys_gateway_btn: DRectButton::new(),
+
+            dghub_btn: DRectButton::new(),
+            dghub_host_btn: DRectButton::new(),
+            dghub_port_btn: DRectButton::new(),
+            dghub_token_btn: DRectButton::new(),
 
             cache_size: None,
             cache_task: None,
@@ -532,6 +542,22 @@ impl GeneralList {
             request_input("anys_gateway", InputBox::new().default_text(&data.anys_gateway));
             return Ok(Some(true));
         }
+        if self.dghub_btn.touch(touch, t) {
+            config.dghub_enable ^= true;
+            return Ok(Some(true));
+        }
+        if self.dghub_host_btn.touch(touch, t) {
+            request_input("dghub_host", InputBox::new().default_text(&config.dghub_host));
+            return Ok(Some(true));
+        }
+        if self.dghub_port_btn.touch(touch, t) {
+            request_input("dghub_port", InputBox::new().default_text(&config.dghub_port.to_string()));
+            return Ok(Some(true));
+        }
+        if self.dghub_token_btn.touch(touch, t) {
+            request_input("dghub_token", InputBox::new().default_text(&config.dghub_token));
+            return Ok(Some(true));
+        }
         Ok(None)
     }
 
@@ -560,6 +586,23 @@ impl GeneralList {
                     data.anys_gateway = text.trim_end_matches('/').to_string();
                     return Ok(true);
                 }
+            } else if id == "dghub_host" {
+                data.config.dghub_host = text.trim().to_string();
+                return Ok(true);
+            } else if id == "dghub_port" {
+                match text.trim().parse::<u16>() {
+                    Ok(port) => {
+                        data.config.dghub_port = port;
+                        return Ok(true);
+                    }
+                    Err(err) => {
+                        show_error(anyhow::Error::new(err).context(tl!("item-dghub-port-invalid")));
+                        return Ok(false);
+                    }
+                }
+            } else if id == "dghub_token" {
+                data.config.dghub_token = text.trim().to_string();
+                return Ok(true);
             } else {
                 return_input(id, text);
             }
@@ -648,6 +691,23 @@ impl GeneralList {
         item! {
             render_title(ui, tl!("item-anys-gateway"), Some(tl!("item-anys-gateway-sub")));
             self.anys_gateway_btn.render_text(ui, rr, t, &data.anys_gateway, 0.4, false);
+        }
+        item! {
+            render_title(ui, tl!("item-dghub"), Some(tl!("item-dghub-sub")));
+            render_switch(ui, rr, t, &mut self.dghub_btn, config.dghub_enable);
+        }
+        item! {
+            render_title(ui, tl!("item-dghub-host"), Some(tl!("item-dghub-host-sub")));
+            self.dghub_host_btn.render_text(ui, rr, t, &config.dghub_host, 0.4, false);
+        }
+        item! {
+            render_title(ui, tl!("item-dghub-port"), Some(tl!("item-dghub-port-sub")));
+            self.dghub_port_btn.render_text(ui, rr, t, config.dghub_port.to_string(), 0.4, false);
+        }
+        item! {
+            render_title(ui, tl!("item-dghub-token"), Some(tl!("item-dghub-token-sub")));
+            let display = if config.dghub_token.is_empty() { "—" } else { &config.dghub_token };
+            self.dghub_token_btn.render_text(ui, rr, t, display, 0.4, false);
         }
         self.lang_btn.render_top(ui, t, 1.);
         (w, h)

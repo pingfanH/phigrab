@@ -8,6 +8,7 @@ mod anim;
 mod charts_view;
 mod client;
 mod data;
+mod dghub;
 mod icons;
 mod images;
 mod login;

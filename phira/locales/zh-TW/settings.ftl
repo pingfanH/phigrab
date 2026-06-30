@@ -30,6 +30,17 @@ item-enable-anys-sub = 使用 Anys 閘道以提升連線品質
 item-anys-gateway = Anys 閘道
 item-anys-gateway-sub = Anys 閘道器位址
 item-anys-gateway-invalid = 閘道器位址無效
+
+item-dghub = DGHub 聯動
+item-dghub-sub = 用 Perfect/Good/Bad/Miss 判定驅動 DGHub 觸發（映射在 DGHub 裡設定）
+item-dghub-host = DGHub 主機
+item-dghub-host-sub = DGHub API 主機，一般為 127.0.0.1
+item-dghub-port = DGHub 連接埠
+item-dghub-port-sub = DGHub API 連接埠，需與 DGHub 設定裡的連接埠一致
+item-dghub-port-invalid = 無效的連接埠
+item-dghub-token = DGHub Token
+item-dghub-token-sub = 會話 token（留空則自動從 DGHub 拉取）
+
 item-adjust = 自動對齊時間
 item-adjust-sub = 自動調整延遲以同步音樂和譜面
 item-music = 音樂音量

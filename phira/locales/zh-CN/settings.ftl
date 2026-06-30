@@ -34,6 +34,16 @@ item-anys-gateway = Anys 网关
 item-anys-gateway-sub = Anys 网关地址
 item-anys-gateway-invalid = 无效的网关地址
 
+item-dghub = DGHub 联动
+item-dghub-sub = 用 Perfect/Good/Bad/Miss 判定驱动 DGHub 触发（映射在 DGHub 里配置）
+item-dghub-host = DGHub 主机
+item-dghub-host-sub = DGHub API 主机，一般为 127.0.0.1
+item-dghub-port = DGHub 端口
+item-dghub-port-sub = DGHub API 端口，需与 DGHub 设置里的端口一致
+item-dghub-port-invalid = 无效的端口
+item-dghub-token = DGHub Token
+item-dghub-token-sub = 会话 token（留空则自动从 DGHub 拉取）
+
 item-adjust = 自动对齐时间
 item-adjust-sub = 自动调整延迟以同步音乐和谱面
 item-music = 音乐音量
