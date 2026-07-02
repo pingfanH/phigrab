@@ -141,6 +141,7 @@ pub struct GameScene {
     pub last_update_time: f64,
     pause_rewind: Option<f64>,
     pause_first_time: f32,
+    pause_touch_consumed_this_frame: bool,
 
     pub bad_notes: Vec<BadNote>,
 
@@ -333,6 +334,7 @@ impl GameScene {
             last_update_time: 0.,
             pause_rewind: None,
             pause_first_time: f32::NEG_INFINITY,
+            pause_touch_consumed_this_frame: false,
 
             bad_notes: Vec::new(),
 
@@ -441,7 +443,9 @@ impl GameScene {
         let pause_w = 0.015;
         let pause_h = pause_w * 3.2;
         let pause_center = self.pause_center(tm);
-        if let Some(touch) = ui.ensure_touches().iter().find(|touch| self.pause_touch_hit(tm, touch)).cloned() {
+        if self.pause_touch_consumed_this_frame {
+            self.pause_touch_consumed_this_frame = false;
+        } else if let Some(touch) = ui.ensure_touches().iter().find(|touch| self.pause_touch_hit(tm, touch)).cloned() {
             self.handle_pause_touch(tm, &touch)?;
         }
         let res = &mut self.res;
@@ -942,6 +946,7 @@ impl Scene for GameScene {
     }
 
     fn update(&mut self, tm: &mut TimeManager) -> Result<()> {
+        self.pause_touch_consumed_this_frame = false;
         self.res.audio.recover_if_needed()?;
         if matches!(self.state, State::Playing) {
             tm.update(self.music.position());
@@ -1093,12 +1098,15 @@ impl Scene for GameScene {
         self.res.time = time;
         if !tm.paused() && self.pause_rewind.is_none() && self.mode != GameMode::View {
             self.gl.quad_gl.viewport(self.res.camera.viewport);
-            if let Some(touch) = Judge::get_touches_with_flip(false)
-                .into_iter()
-                .find(|touch| self.pause_touch_hit(tm, touch))
-            {
-                self.handle_pause_touch(tm, &touch)?;
-            }
+            // Temporarily disabled: pause touch through the judge viewport.
+            // if let Some(touch) = Judge::get_touches_with_flip(false)
+            //     .into_iter()
+            //     .find(|touch| self.pause_touch_hit(tm, touch))
+            // {
+            //     if self.handle_pause_touch(tm, &touch)? {
+            //         self.pause_touch_consumed_this_frame = true;
+            //     }
+            // }
             if !tm.paused() {
                 self.judge.update(&mut self.res, &mut self.chart, &mut self.bad_notes);
             }
@@ -1201,10 +1209,6 @@ impl Scene for GameScene {
     }
 
     fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
-        if self.handle_pause_touch(tm, touch)? {
-            return Ok(true);
-        }
-
         if self.mode == GameMode::Exercise && tm.paused() {
             let touch = Touch {
                 position: touch.position * self.touch_scale(),

@@ -68,6 +68,9 @@ prpr-avc = { path = "prpr-avc" }
 prpr-l10n = { path = "prpr-l10n" }
 sasa = { git = "https://github.com/Mivik/sasa", rev = "e76229b", default-features = false }
 
+[patch."https://github.com/Mivik/prpr-miniquad"]
+miniquad = { path = "vendor/prpr-miniquad" }
+
 [profile.release]
 opt-level = 2
 strip = true
