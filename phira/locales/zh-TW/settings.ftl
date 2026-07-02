@@ -33,6 +33,7 @@ item-anys-gateway-invalid = 閘道器位址無效
 
 item-dghub = DGHub 聯動
 item-dghub-sub = 用 Perfect/Good/Bad/Miss 判定驅動 DGHub 觸發（映射在 DGHub 裡設定）
+dghub = DGHub 聯動
 item-dghub-host = DGHub 主機
 item-dghub-host-sub = DGHub API 主機，一般為 127.0.0.1
 item-dghub-port = DGHub 連接埠

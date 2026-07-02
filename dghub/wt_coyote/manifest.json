@@ -1,0 +1,185 @@
+{
+  "id": "wt_coyote",
+  "name": "战雷 X 郊狼",
+  "version": "3.0.0",
+  "sdk": "1",
+  "author": "狗狗",
+  "description": "杂鱼小南娘自己来挨电",
+  "entry": "main.py",
+  "config_schema": [
+    {
+      "section": "📂 预设导入/导出",
+      "fields": [
+        { "key": "preset_file_path", "type": "text", "label": "预设文件路径 (.json)", "default": "D:\\wt_preset.json", "description": "填入你想读取或保存的 JSON 文件完整路径" },
+        { "key": "trigger_import", "type": "bool", "label": "⏬ 执行导入 (读取)", "default": false },
+        { "key": "trigger_export", "type": "bool", "label": "⏫ 执行导出 (保存)", "default": false }
+      ]
+    },
+    {
+      "section": "⚙️ 基础与模式设置",
+      "fields": [
+        { "key": "player_id", "type": "text", "label": "战雷玩家 ID", "default": "", "description": "必填，区分你和别人的击杀" },
+        { "key": "polling_rate", "type": "number", "label": "全局刷新频率 (ms)", "default": 200, "min": 50, "max": 2000, "step": 50 },
+        { "key": "ui_base_a", "type": "number", "label": "A通道静止基础强度", "default": 5, "max": 100 },
+        { "key": "ui_base_b", "type": "number", "label": "B通道静止基础强度", "default": 5, "max": 100 },
+        { "key": "ui_max_a", "type": "number", "label": "A通道最高强度限幅", "default": 50, "max": 100 },
+        { "key": "ui_max_b", "type": "number", "label": "B通道最高强度限幅", "default": 50, "max": 100 },
+        { "key": "ui_idle_preset", "type": "preset", "label": "战局初始体验波形", "default": "", "description": "每局刚进入时会脉冲播放一次" },
+        { "key": "difficulty_mode", "type": "select", "label": "游玩模式", "default": "simple", "options": [{"value": "simple", "label": "简单模式(普通增减)"}, {"value": "hard", "label": "困难模式(死斗累积)"}] },
+        { "key": "hard_death_add", "type": "number", "label": "[困难]被击杀永久强度增加 ", "default": 2 },
+        { "key": "hard_kill_sub", "type": "number", "label": "[困难]击杀他人永久强度减少 ", "default": 1 },
+        { "key": "hard_lose_add", "type": "number", "label": "[困难]败北/逃跑永久强度增加 ", "default": 3 },
+        { "key": "hard_win_sub", "type": "number", "label": "[困难]胜利永久强度减少 ", "default": 3 }
+      ]
+    },
+    {
+      "section": "💬 游戏聊天指令控制",
+      "fields": [
+        { "key": "evt_chat_enable", "type": "bool", "label": "启用聊天指令解析", "default": true },
+        { "key": "chat_cmd_keyword", "type": "text", "label": "触发关键词", "default": "进攻D点" },
+        { "key": "evt_chat_delta_a", "type": "number", "label": "A通道增减百分比(负数为减)", "default": 100 },
+        { "key": "evt_chat_delta_b", "type": "number", "label": "B通道增减百分比(负数为减)", "default": 100 },
+        { "key": "evt_chat_dur", "type": "duration", "label": "持续时间(秒)", "default": 2.0 },
+        { "key": "evt_chat_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_chat_priority", "type": "number", "label": "事件优先级", "default": 5 }
+      ]
+    },
+    {
+      "section": "⚔️ [HUD] 受击(重创/致命)",
+      "fields": [
+        { "key": "evt_crit_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_crit_delta_a", "type": "number", "label": "A通道增减百分比(乘以基础)", "default": 200, "description": "例如：基础强度 5，此处填 200%，则触发时 A 通道临时增加 10 点强度。" },
+        { "key": "evt_crit_delta_b", "type": "number", "label": "B通道增减百分比", "default": 200 },
+        { "key": "evt_crit_dur", "type": "duration", "label": "持续时间(秒)", "default": 2.0 },
+        { "key": "evt_crit_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_crit_priority", "type": "number", "label": "事件优先级", "default": 2, "description": "高优先级事件持续期间，将无视低优先级的触发" }
+      ]
+    },
+    {
+      "section": "💀 [HUD] 阵亡(被击毁)",
+      "fields": [
+        { "key": "evt_death_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_death_delta_a", "type": "number", "label": "A通道增减百分比", "default": 400 },
+        { "key": "evt_death_delta_b", "type": "number", "label": "B通道增减百分比", "default": 400 },
+        { "key": "evt_death_dur", "type": "duration", "label": "持续时间(秒)", "default": 4.0 },
+        { "key": "evt_death_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_death_priority", "type": "number", "label": "事件优先级", "default": 3 }
+      ]
+    },
+    {
+      "section": "🎯 [HUD] 击杀敌人",
+      "fields": [
+        { "key": "evt_kill_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_kill_delta_a", "type": "number", "label": "A通道增减百分比", "default": -50 },
+        { "key": "evt_kill_delta_b", "type": "number", "label": "B通道增减百分比", "default": -50 },
+        { "key": "evt_kill_dur", "type": "duration", "label": "持续时间(秒)", "default": 1.5 },
+        { "key": "evt_kill_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_kill_priority", "type": "number", "label": "事件优先级", "default": 1 }
+      ]
+    },
+    {
+      "section": "🔥 [HUD] 被点燃",
+      "fields": [
+        { "key": "evt_fire_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_fire_delta_a", "type": "number", "label": "A通道增减百分比", "default": 100 },
+        { "key": "evt_fire_delta_b", "type": "number", "label": "B通道增减百分比", "default": 100 },
+        { "key": "evt_fire_dur", "type": "duration", "label": "持续时间(秒)", "default": 3.0 },
+        { "key": "evt_fire_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_fire_priority", "type": "number", "label": "事件优先级", "default": 2 }
+      ]
+    },
+    {
+      "section": "💥 [HUD] 自爆/坠毁",
+      "fields": [
+        { "key": "evt_crash_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_crash_delta_a", "type": "number", "label": "A通道增减百分比", "default": 300 },
+        { "key": "evt_crash_delta_b", "type": "number", "label": "B通道增减百分比", "default": 300 },
+        { "key": "evt_crash_dur", "type": "duration", "label": "持续时间(秒)", "default": 3.0 },
+        { "key": "evt_crash_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_crash_priority", "type": "number", "label": "事件优先级", "default": 3 }
+      ]
+    },
+    {
+      "section": "👥 [遥测] 乘员减少",
+      "fields": [
+        { "key": "evt_crew_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_crew_delta_a", "type": "number", "label": "A通道增减百分比", "default": 150 },
+        { "key": "evt_crew_delta_b", "type": "number", "label": "B通道增减百分比", "default": 150 },
+        { "key": "evt_crew_dur", "type": "duration", "label": "持续时间(秒)", "default": 1.5 },
+        { "key": "evt_crew_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_crew_priority", "type": "number", "label": "事件优先级", "default": 1 }
+      ]
+    },
+    {
+      "section": "🔧 [遥测] 履带断裂",
+      "fields": [
+        { "key": "evt_track_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_track_delta_a", "type": "number", "label": "A通道增减百分比", "default": 50 },
+        { "key": "evt_track_delta_b", "type": "number", "label": "B通道增减百分比", "default": 50 },
+        { "key": "evt_track_dur", "type": "duration", "label": "持续时间(秒)", "default": 2.0 },
+        { "key": "evt_track_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_track_priority", "type": "number", "label": "事件优先级", "default": 1 }
+      ]
+    },
+    {
+      "section": "🔄 [遥测] 装填完毕/待发弹减少",
+      "fields": [
+        { "key": "evt_ammo_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_ammo_delta_a", "type": "number", "label": "A通道增减百分比", "default": 100 },
+        { "key": "evt_ammo_delta_b", "type": "number", "label": "B通道增减百分比", "default": 100 },
+        { "key": "evt_ammo_dur", "type": "duration", "label": "持续时间(秒)", "default": 0.5 },
+        { "key": "evt_ammo_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_ammo_priority", "type": "number", "label": "事件优先级", "default": 1 }
+      ]
+    },
+    {
+      "section": "🚨 [遥测] 激光告警 (LWS)",
+      "fields": [
+        { "key": "evt_lws_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_lws_delta_a", "type": "number", "label": "A通道增减百分比", "default": 50 },
+        { "key": "evt_lws_delta_b", "type": "number", "label": "B通道增减百分比", "default": 50 },
+        { "key": "evt_lws_dur", "type": "duration", "label": "持续时间(秒)", "default": 1.0 },
+        { "key": "evt_lws_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_lws_priority", "type": "number", "label": "事件优先级", "default": 1 }
+      ]
+    },
+    {
+      "section": "✈️ [环境] 空战速度加成",
+      "fields": [
+        { "key": "speed_air_enable", "type": "bool", "label": "开启空战速度常驻惩罚", "default": false },
+        { "key": "speed_air_step", "type": "number", "label": "速度步进 (每 km/h)", "default": 50, "description": "例如：填50，则飞机每 50km/h 计算一次加成" },
+        { "key": "speed_air_add", "type": "number", "label": "每一阶梯增加固定强度", "default": 1, "description": "非百分比，直接叠加到基础环境强度上" }
+      ]
+    },
+    {
+      "section": "🚜 [环境] 陆战速度加成",
+      "fields": [
+        { "key": "speed_ground_enable", "type": "bool", "label": "开启陆战速度常驻惩罚", "default": true },
+        { "key": "speed_ground_step", "type": "number", "label": "速度步进 (每 km/h)", "default": 10 },
+        { "key": "speed_ground_add", "type": "number", "label": "每一阶梯增加固定强度", "default": 1 }
+      ]
+    },
+    {
+      "section": "🏆 [战局] 胜利结算",
+      "fields": [
+        { "key": "evt_win_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_win_delta_a", "type": "number", "label": "A通道增减百分比", "default": -100 },
+        { "key": "evt_win_delta_b", "type": "number", "label": "B通道增减百分比", "default": -100 },
+        { "key": "evt_win_dur", "type": "duration", "label": "持续时间(秒)", "default": 5.0 },
+        { "key": "evt_win_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_win_priority", "type": "number", "label": "事件优先级", "default": 4 }
+      ]
+    },
+    {
+      "section": "😭 [战局] 败北/逃跑",
+      "fields": [
+        { "key": "evt_lose_enable", "type": "bool", "label": "启用此事件", "default": true },
+        { "key": "evt_lose_delta_a", "type": "number", "label": "A通道增减百分比", "default": 500 },
+        { "key": "evt_lose_delta_b", "type": "number", "label": "B通道增减百分比", "default": 500 },
+        { "key": "evt_lose_dur", "type": "duration", "label": "持续时间(秒)", "default": 5.0 },
+        { "key": "evt_lose_preset", "type": "preset", "label": "触发波形", "default": "" },
+        { "key": "evt_lose_priority", "type": "number", "label": "事件优先级", "default": 4 }
+      ]
+    }
+  ]
+}

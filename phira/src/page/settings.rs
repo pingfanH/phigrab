@@ -133,6 +133,7 @@ enum SettingListType {
     Audio,
     Chart,
     Debug,
+    Dghub,
     About,
 }
 
@@ -141,6 +142,7 @@ pub struct SettingsPage {
     list_audio: AudioList,
     list_chart: ChartList,
     list_debug: DebugList,
+    list_dghub: DghubList,
 
     tabs: Tabs<SettingListType>,
 
@@ -159,14 +161,16 @@ impl SettingsPage {
             list_audio: AudioList::new(),
             list_chart: ChartList::new(),
             list_debug: DebugList::new(),
+            list_dghub: DghubList::new(),
 
             tabs: Tabs::new([
                 (SettingListType::General, || tl!("general")),
                 (SettingListType::Audio, || tl!("audio")),
                 (SettingListType::Chart, || tl!("chart")),
+                (SettingListType::Dghub, || tl!("dghub")),
                 (SettingListType::Debug, || tl!("debug")),
                 (SettingListType::About, || tl!("about")),
-            ] as [(SettingListType, TitleFn); 5]),
+            ] as [(SettingListType, TitleFn); 6]),
 
             scroll: Scroll::new(),
             save_time: f32::INFINITY,
@@ -196,6 +200,7 @@ impl Page for SettingsPage {
             SettingListType::Audio => self.list_audio.top_touch(touch, t),
             SettingListType::Chart => self.list_chart.top_touch(touch, t),
             SettingListType::Debug => self.list_debug.top_touch(touch, t),
+            SettingListType::Dghub => self.list_dghub.top_touch(touch, t),
             SettingListType::About => false,
         } {
             return Ok(true);
@@ -213,6 +218,7 @@ impl Page for SettingsPage {
             SettingListType::Audio => self.list_audio.touch(touch, t)?,
             SettingListType::Chart => self.list_chart.touch(touch, t)?,
             SettingListType::Debug => self.list_debug.touch(touch, t)?,
+            SettingListType::Dghub => self.list_dghub.touch(touch, t)?,
             SettingListType::About => None,
         } {
             if p {
@@ -231,6 +237,7 @@ impl Page for SettingsPage {
             SettingListType::Audio => self.list_audio.update(t)?,
             SettingListType::Chart => self.list_chart.update(t)?,
             SettingListType::Debug => self.list_debug.update(t)?,
+            SettingListType::Dghub => self.list_dghub.update(t)?,
             SettingListType::About => false,
         };
         self.scroll.update(t);
@@ -261,6 +268,7 @@ impl Page for SettingsPage {
                         SettingListType::Audio => self.list_audio.render(ui, r, t),
                         SettingListType::Chart => self.list_chart.render(ui, r, t),
                         SettingListType::Debug => self.list_debug.render(ui, r, t),
+                        SettingListType::Dghub => self.list_dghub.render(ui, r, t),
                         SettingListType::About => render_about(ui, r, &self.icon),
                     });
                 });
@@ -400,11 +408,6 @@ struct GeneralList {
     enable_anys_btn: DRectButton,
     anys_gateway_btn: DRectButton,
 
-    dghub_btn: DRectButton,
-    dghub_host_btn: DRectButton,
-    dghub_port_btn: DRectButton,
-    dghub_token_btn: DRectButton,
-
     cache_size: Option<u64>,
     cache_task: Option<Task<Result<u64>>>,
 }
@@ -439,12 +442,6 @@ impl GeneralList {
             insecure_btn: DRectButton::new(),
             enable_anys_btn: DRectButton::new(),
             anys_gateway_btn: DRectButton::new(),
-
-            dghub_btn: DRectButton::new(),
-            dghub_host_btn: DRectButton::new(),
-            dghub_port_btn: DRectButton::new(),
-            dghub_token_btn: DRectButton::new(),
-
             cache_size: None,
             cache_task: None,
         };
@@ -542,22 +539,6 @@ impl GeneralList {
             request_input("anys_gateway", InputBox::new().default_text(&data.anys_gateway));
             return Ok(Some(true));
         }
-        if self.dghub_btn.touch(touch, t) {
-            config.dghub_enable ^= true;
-            return Ok(Some(true));
-        }
-        if self.dghub_host_btn.touch(touch, t) {
-            request_input("dghub_host", InputBox::new().default_text(&config.dghub_host));
-            return Ok(Some(true));
-        }
-        if self.dghub_port_btn.touch(touch, t) {
-            request_input("dghub_port", InputBox::new().default_text(&config.dghub_port.to_string()));
-            return Ok(Some(true));
-        }
-        if self.dghub_token_btn.touch(touch, t) {
-            request_input("dghub_token", InputBox::new().default_text(&config.dghub_token));
-            return Ok(Some(true));
-        }
         Ok(None)
     }
 
@@ -586,23 +567,6 @@ impl GeneralList {
                     data.anys_gateway = text.trim_end_matches('/').to_string();
                     return Ok(true);
                 }
-            } else if id == "dghub_host" {
-                data.config.dghub_host = text.trim().to_string();
-                return Ok(true);
-            } else if id == "dghub_port" {
-                match text.trim().parse::<u16>() {
-                    Ok(port) => {
-                        data.config.dghub_port = port;
-                        return Ok(true);
-                    }
-                    Err(err) => {
-                        show_error(anyhow::Error::new(err).context(tl!("item-dghub-port-invalid")));
-                        return Ok(false);
-                    }
-                }
-            } else if id == "dghub_token" {
-                data.config.dghub_token = text.trim().to_string();
-                return Ok(true);
             } else {
                 return_input(id, text);
             }
@@ -691,23 +655,6 @@ impl GeneralList {
         item! {
             render_title(ui, tl!("item-anys-gateway"), Some(tl!("item-anys-gateway-sub")));
             self.anys_gateway_btn.render_text(ui, rr, t, &data.anys_gateway, 0.4, false);
-        }
-        item! {
-            render_title(ui, tl!("item-dghub"), Some(tl!("item-dghub-sub")));
-            render_switch(ui, rr, t, &mut self.dghub_btn, config.dghub_enable);
-        }
-        item! {
-            render_title(ui, tl!("item-dghub-host"), Some(tl!("item-dghub-host-sub")));
-            self.dghub_host_btn.render_text(ui, rr, t, &config.dghub_host, 0.4, false);
-        }
-        item! {
-            render_title(ui, tl!("item-dghub-port"), Some(tl!("item-dghub-port-sub")));
-            self.dghub_port_btn.render_text(ui, rr, t, config.dghub_port.to_string(), 0.4, false);
-        }
-        item! {
-            render_title(ui, tl!("item-dghub-token"), Some(tl!("item-dghub-token-sub")));
-            let display = if config.dghub_token.is_empty() { "—" } else { &config.dghub_token };
-            self.dghub_token_btn.render_text(ui, rr, t, display, 0.4, false);
         }
         self.lang_btn.render_top(ui, t, 1.);
         (w, h)
@@ -1051,6 +998,291 @@ impl DebugList {
         item! {
             render_title(ui, tl!("item-touch-debug"), Some(tl!("item-touch-debug-sub")));
             render_switch(ui, rr, t, &mut self.touch_debug_btn, config.touch_debug);
+        }
+        (w, h)
+    }
+}
+
+// ===========================================================================
+// DGHub 联动设置 (独立 Tab)
+// ===========================================================================
+
+struct DghubList {
+    enable_btn: DRectButton,
+    host_btn: DRectButton,
+    port_btn: DRectButton,
+    token_btn: DRectButton,
+    reconnect_btn: DRectButton,
+    use_phira_btn: DRectButton,
+    miss_enable_btn: DRectButton,
+    miss_strength_btn: DRectButton,
+    miss_duration_btn: DRectButton,
+    miss_preset_btn: DRectButton,
+    bad_enable_btn: DRectButton,
+    bad_strength_btn: DRectButton,
+    bad_duration_btn: DRectButton,
+    bad_preset_btn: DRectButton,
+    good_enable_btn: DRectButton,
+    good_strength_btn: DRectButton,
+    good_duration_btn: DRectButton,
+    good_preset_btn: DRectButton,
+    perf_enable_btn: DRectButton,
+    perf_strength_btn: DRectButton,
+    perf_duration_btn: DRectButton,
+    perf_preset_btn: DRectButton,
+    channel_btn: DRectButton,
+    throttle_btn: DRectButton,
+}
+
+impl DghubList {
+    pub fn new() -> Self {
+        let b = || DRectButton::new();
+        Self {
+            enable_btn: b(),
+            host_btn: b(),
+            port_btn: b(),
+            token_btn: b(),
+            reconnect_btn: b(),
+            use_phira_btn: b(),
+            miss_enable_btn: b(),
+            miss_strength_btn: b(),
+            miss_duration_btn: b(),
+            miss_preset_btn: b(),
+            bad_enable_btn: b(),
+            bad_strength_btn: b(),
+            bad_duration_btn: b(),
+            bad_preset_btn: b(),
+            good_enable_btn: b(),
+            good_strength_btn: b(),
+            good_duration_btn: b(),
+            good_preset_btn: b(),
+            perf_enable_btn: b(),
+            perf_strength_btn: b(),
+            perf_duration_btn: b(),
+            perf_preset_btn: b(),
+            channel_btn: b(),
+            throttle_btn: b(),
+        }
+    }
+
+    pub fn top_touch(&mut self, _t: &Touch, _f: f32) -> bool {
+        false
+    }
+
+    pub fn touch(&mut self, touch: &Touch, t: f32) -> Result<Option<bool>> {
+        let data = get_data_mut();
+        let cfg = &mut data.config;
+        macro_rules! sw {
+            ($b:ident, $f:ident) => {
+                if self.$b.touch(touch, t) {
+                    cfg.$f ^= true;
+                    return Ok(Some(true));
+                }
+            };
+        }
+        macro_rules! ti {
+            ($b:ident, $id:literal, $d:expr) => {
+                if self.$b.touch(touch, t) {
+                    request_input($id, InputBox::new().default_text($d));
+                    return Ok(Some(true));
+                }
+            };
+        }
+        sw!(enable_btn, dghub_enable);
+        ti!(host_btn, "dghub_host", &cfg.dghub_host);
+        ti!(port_btn, "dghub_port", &cfg.dghub_port.to_string());
+        ti!(token_btn, "dghub_token", &cfg.dghub_token);
+        if self.reconnect_btn.touch(touch, t) {
+            crate::dghub::request_reconnect();
+            return Ok(Some(false));
+        }
+        sw!(use_phira_btn, dghub_use_phira_config);
+        if cfg.dghub_use_phira_config {
+            sw!(miss_enable_btn, dghub_miss_enable);
+            ti!(miss_strength_btn, "dms", &cfg.dghub_miss_strength.to_string());
+            ti!(miss_duration_btn, "dmd", &cfg.dghub_miss_duration.to_string());
+            ti!(miss_preset_btn, "dmp", &cfg.dghub_miss_preset);
+            sw!(bad_enable_btn, dghub_bad_enable);
+            ti!(bad_strength_btn, "dbs", &cfg.dghub_bad_strength.to_string());
+            ti!(bad_duration_btn, "dbd", &cfg.dghub_bad_duration.to_string());
+            ti!(bad_preset_btn, "dbp", &cfg.dghub_bad_preset);
+            sw!(good_enable_btn, dghub_good_enable);
+            ti!(good_strength_btn, "dgs", &cfg.dghub_good_strength.to_string());
+            ti!(good_duration_btn, "dgd", &cfg.dghub_good_duration.to_string());
+            ti!(good_preset_btn, "dgp", &cfg.dghub_good_preset);
+            sw!(perf_enable_btn, dghub_perfect_enable);
+            ti!(perf_strength_btn, "dps", &cfg.dghub_perfect_strength.to_string());
+            ti!(perf_duration_btn, "dpd", &cfg.dghub_perfect_duration.to_string());
+            ti!(perf_preset_btn, "dpp", &cfg.dghub_perfect_preset);
+            ti!(channel_btn, "dch", &cfg.dghub_channel);
+            ti!(throttle_btn, "dth", &cfg.dghub_throttle_ms.to_string());
+        }
+        Ok(None)
+    }
+
+    pub fn update(&mut self, _t: f32) -> Result<bool> {
+        if let Some((id, text)) = take_input() {
+            let cfg = &mut get_data_mut().config;
+            match id.as_str() {
+                "dghub_host" => {
+                    cfg.dghub_host = text.trim().to_string();
+                    return Ok(true);
+                }
+                "dghub_port" => {
+                    if let Ok(p) = text.trim().parse() {
+                        cfg.dghub_port = p;
+                        return Ok(true);
+                    }
+                }
+                "dghub_token" => {
+                    cfg.dghub_token = text.trim().to_string();
+                    return Ok(true);
+                }
+                _ => {}
+            }
+            if cfg.dghub_use_phira_config {
+                let t = text.trim();
+                macro_rules! p {
+                    ($id:literal, $field:ident, u32) => {
+                        if id == $id {
+                            if let Ok(n) = t.parse() {
+                                cfg.$field = n;
+                                return Ok(true);
+                            }
+                        }
+                    };
+                    ($id:literal, $field:ident, f64) => {
+                        if id == $id {
+                            if let Ok(n) = t.parse() {
+                                cfg.$field = n;
+                                return Ok(true);
+                            }
+                        }
+                    };
+                    ($id:literal, $field:ident, str) => {
+                        if id == $id {
+                            cfg.$field = t.to_string();
+                            return Ok(true);
+                        }
+                    };
+                }
+                p!("dms", dghub_miss_strength, u32);
+                p!("dmd", dghub_miss_duration, f64);
+                p!("dmp", dghub_miss_preset, str);
+                p!("dbs", dghub_bad_strength, u32);
+                p!("dbd", dghub_bad_duration, f64);
+                p!("dbp", dghub_bad_preset, str);
+                p!("dgs", dghub_good_strength, u32);
+                p!("dgd", dghub_good_duration, f64);
+                p!("dgp", dghub_good_preset, str);
+                p!("dps", dghub_perfect_strength, u32);
+                p!("dpd", dghub_perfect_duration, f64);
+                p!("dpp", dghub_perfect_preset, str);
+                p!("dch", dghub_channel, str);
+                p!("dth", dghub_throttle_ms, u32);
+            }
+        }
+        Ok(false)
+    }
+
+    pub fn render(&mut self, ui: &mut Ui, r: Rect, t: f32) -> (f32, f32) {
+        let w = r.w;
+        let mut h = 0.;
+        macro_rules! item { ($($b:tt)*) => {{ $($b)* ui.dy(ITEM_HEIGHT); h += ITEM_HEIGHT; }} }
+        let rr = right_rect(w);
+        let cfg = &get_data().config;
+
+        // 连接
+        item! { render_title(ui, tl!("item-dghub"), Some(tl!("item-dghub-sub")));
+        render_switch(ui, rr, t, &mut self.enable_btn, cfg.dghub_enable); }
+        item! { render_title(ui, tl!("item-dghub-host"), Some(tl!("item-dghub-host-sub")));
+        self.host_btn.render_text(ui, rr, t, &cfg.dghub_host, 0.4, false); }
+        item! { render_title(ui, tl!("item-dghub-port"), Some(tl!("item-dghub-port-sub")));
+        self.port_btn.render_text(ui, rr, t, cfg.dghub_port.to_string(), 0.4, false); }
+        item! { render_title(ui, tl!("item-dghub-token"), Some(tl!("item-dghub-token-sub")));
+        self.token_btn.render_text(ui, rr, t, if cfg.dghub_token.is_empty(){"—"}else{&cfg.dghub_token}, 0.4, false); }
+        item! {
+            let st = crate::dghub::connection_status();
+            let txt = match st { 1=>tl!("item-dghub-status-connecting"), 2=>tl!("item-dghub-status-connected"), _=>tl!("item-dghub-status-off") };
+            render_title(ui, tl!("item-dghub-status"), Some(txt));
+            self.reconnect_btn.render_text(ui, rr, t, tl!("item-dghub-reconnect"), 0.4, true);
+        }
+        // 配置来源
+        item! {
+            render_title(ui, tl!("item-dghub-source"),
+                Some(if cfg.dghub_use_phira_config { tl!("item-dghub-source-phira") } else { tl!("item-dghub-source-dghub") }));
+            render_switch(ui, rr, t, &mut self.use_phira_btn, cfg.dghub_use_phira_config);
+        }
+        // 映射 (仅 Phira 端)
+        if cfg.dghub_use_phira_config {
+            macro_rules! gr {
+                ($title:literal, $en:ident, $ef:ident, $st:ident, $sv:expr, $du:ident, $dv:expr, $pr:ident, $pv:expr) => {{
+                    item! { render_title(ui, $title, None); render_switch(ui, rr, t, &mut self.$en, cfg.$ef); }
+                    item! { render_title(ui, tl!("item-dghub-strength"), None); self.$st.render_text(ui, rr, t, $sv, 0.4, false); }
+                    item! { render_title(ui, tl!("item-dghub-duration"), None); self.$du.render_text(ui, rr, t, $dv, 0.4, false); }
+                    item! { render_title(ui, tl!("item-dghub-preset"), None); self.$pr.render_text(ui, rr, t, $pv, 0.4, false); }
+                }};
+            }
+            gr!(
+                "Miss",
+                miss_enable_btn,
+                dghub_miss_enable,
+                miss_strength_btn,
+                cfg.dghub_miss_strength.to_string(),
+                miss_duration_btn,
+                cfg.dghub_miss_duration.to_string(),
+                miss_preset_btn,
+                if cfg.dghub_miss_preset.is_empty() {
+                    "—"
+                } else {
+                    &cfg.dghub_miss_preset
+                }
+            );
+            gr!(
+                "Bad",
+                bad_enable_btn,
+                dghub_bad_enable,
+                bad_strength_btn,
+                cfg.dghub_bad_strength.to_string(),
+                bad_duration_btn,
+                cfg.dghub_bad_duration.to_string(),
+                bad_preset_btn,
+                if cfg.dghub_bad_preset.is_empty() { "—" } else { &cfg.dghub_bad_preset }
+            );
+            gr!(
+                "Good",
+                good_enable_btn,
+                dghub_good_enable,
+                good_strength_btn,
+                cfg.dghub_good_strength.to_string(),
+                good_duration_btn,
+                cfg.dghub_good_duration.to_string(),
+                good_preset_btn,
+                if cfg.dghub_good_preset.is_empty() {
+                    "—"
+                } else {
+                    &cfg.dghub_good_preset
+                }
+            );
+            gr!(
+                "Perfect",
+                perf_enable_btn,
+                dghub_perfect_enable,
+                perf_strength_btn,
+                cfg.dghub_perfect_strength.to_string(),
+                perf_duration_btn,
+                cfg.dghub_perfect_duration.to_string(),
+                perf_preset_btn,
+                if cfg.dghub_perfect_preset.is_empty() {
+                    "—"
+                } else {
+                    &cfg.dghub_perfect_preset
+                }
+            );
+            item! { render_title(ui, tl!("item-dghub-channel"), None);
+            self.channel_btn.render_text(ui, rr, t, &cfg.dghub_channel, 0.4, false); }
+            item! { render_title(ui, tl!("item-dghub-throttle"), None);
+            self.throttle_btn.render_text(ui, rr, t, cfg.dghub_throttle_ms.to_string(), 0.4, false); }
         }
         (w, h)
     }

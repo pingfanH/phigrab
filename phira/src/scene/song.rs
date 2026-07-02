@@ -975,7 +975,7 @@ impl SongScene {
         let update_fn = {
             let cfg = &get_data().config;
             let dghub_fn = if cfg.dghub_enable {
-                let token = if cfg.dghub_token.is_empty() { None } else { Some(cfg.dghub_token.clone()) };
+                let token = crate::dghub::normalize_token(&cfg.dghub_token);
                 let handle = crate::dghub::spawn(cfg.dghub_host.clone(), cfg.dghub_port, token);
                 Some(crate::dghub::build_update_fn(handle, |ev| {
                     use crate::dghub::DghubEvent;

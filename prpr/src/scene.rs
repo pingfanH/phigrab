@@ -446,7 +446,14 @@ impl Main {
             }
         }
         Judge::on_new_frame();
+        let old_viewport = {
+            let gl = unsafe { get_internal_gl() };
+            let old = gl.quad_gl.get_viewport();
+            gl.quad_gl.viewport(self.viewport);
+            old
+        };
         let mut touches = Judge::get_touches();
+        unsafe { get_internal_gl() }.quad_gl.viewport(old_viewport);
         touches.iter_mut().for_each(f);
         if !(touches.is_empty() || FULL_LOADING.with(|it| it.borrow().is_some())) {
             let now = self.tm.now();

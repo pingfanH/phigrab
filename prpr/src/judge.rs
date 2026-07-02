@@ -393,10 +393,10 @@ impl Judge {
         }
     }
 
-    pub fn get_touches() -> Vec<Touch> {
+    pub(crate) fn get_touches_with_flip(flip_x: bool) -> Vec<Touch> {
         TOUCHES.with(|it| {
             let guard = it.borrow();
-            let tr = Self::touch_transform(false);
+            let tr = Self::touch_transform(flip_x);
             guard
                 .touches
                 .iter()
@@ -407,6 +407,10 @@ impl Judge {
                 })
                 .collect()
         })
+    }
+
+    pub fn get_touches() -> Vec<Touch> {
+        Self::get_touches_with_flip(false)
     }
 
     pub fn update(&mut self, res: &mut Resource, chart: &mut Chart, bad_notes: &mut Vec<BadNote>) {
@@ -421,6 +425,7 @@ impl Judge {
 
         let t = res.time;
         // TODO optimize
+        let tr = Self::touch_transform(res.config.flip_x());
         let mut touches: HashMap<u64, Touch> = {
             let mut touches = touches();
             let btn = MouseButton::Left;
@@ -450,7 +455,6 @@ impl Judge {
                     time: f64::NEG_INFINITY,
                 });
             }
-            let tr = Self::touch_transform(res.config.flip_x());
             touches
                 .into_iter()
                 .map(|mut it| {
@@ -470,9 +474,6 @@ impl Judge {
         });
         self.key_down_count = self.key_down_count.saturating_add_signed(key_delta);
         {
-            fn to_local(Vec2 { x, y }: Vec2) -> Point {
-                Point::new(x / screen_width() * 2. - 1., y / screen_height() * 2. - 1.)
-            }
             let delta = (t / spd - self.last_time) / (events.len() + 1) as f64;
             let mut t = self.last_time;
             for Touch {
@@ -484,27 +485,44 @@ impl Judge {
             {
                 t += delta;
                 let t = t as f32;
-                let p = to_local(p);
+                let mut event_touch = Touch {
+                    id,
+                    phase,
+                    position: p,
+                    time,
+                };
+                tr(&mut event_touch);
+                let p = Point::new(event_touch.position.x, event_touch.position.y);
                 match phase {
                     TouchPhase::Started => {
                         self.trackers.insert(id, FlickTracker::new(res.dpi, t, p));
                         touches
                             .entry(id)
-                            .or_insert_with(|| Touch {
-                                id,
-                                phase: TouchPhase::Started,
-                                position: vec2(p.x, p.y),
-                                time,
+                            .and_modify(|touch| {
+                                touch.phase = TouchPhase::Started;
+                                touch.position = event_touch.position;
+                                touch.time = event_touch.time;
                             })
-                            .phase = TouchPhase::Started;
+                            .or_insert(event_touch);
                     }
                     TouchPhase::Moved | TouchPhase::Stationary => {
                         if let Some(tracker) = self.trackers.get_mut(&id) {
                             tracker.push(t, p);
                         }
+                        touches
+                            .entry(id)
+                            .and_modify(|touch| {
+                                if touch.phase != TouchPhase::Started {
+                                    touch.phase = phase;
+                                    touch.position = event_touch.position;
+                                    touch.time = event_touch.time;
+                                }
+                            })
+                            .or_insert(event_touch);
                     }
                     TouchPhase::Ended | TouchPhase::Cancelled => {
                         self.trackers.remove(&id);
+                        touches.entry(id).or_insert(event_touch);
                     }
                 }
             }

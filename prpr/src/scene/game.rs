@@ -132,6 +132,7 @@ pub struct GameScene {
     first_in: bool,
     exercise_range: Range<f64>,
     exercise_press: Option<(i8, u64)>,
+    pause_btn: RectButton,
     exercise_btns: (RectButton, RectButton),
 
     pub music: Music,
@@ -323,6 +324,7 @@ impl GameScene {
             first_in: false,
             exercise_range,
             exercise_press: None,
+            pause_btn: RectButton::new(),
             exercise_btns: (RectButton::new(), RectButton::new()),
 
             music,
@@ -365,6 +367,60 @@ impl GameScene {
         (screen_width() / screen_height()) / self.res.aspect_ratio
     }
 
+    fn pause_center(&self, tm: &TimeManager) -> Point {
+        let time = tm.now();
+        let p = match self.state {
+            State::Starting => {
+                if time <= Self::BEFORE_TIME {
+                    1. - (1. - time / Self::BEFORE_TIME).powi(3)
+                } else {
+                    1.
+                }
+            }
+            State::BeforeMusic | State::Playing => 1.,
+            State::Ending => {
+                let t = time - self.res.track_length - WAIT_TIME;
+                1. - (t / (AFTER_TIME + 0.3)).min(1.).powi(2)
+            }
+        } as f32;
+        let pause_w = 0.015;
+        let pause_h = pause_w * 3.2;
+        let eps = 2e-2 / self.res.aspect_ratio;
+        let top = -1. / self.res.aspect_ratio;
+        Point::new(pause_w * 4.0 - 1., top + eps * 3.5 - (1. - p) * 0.4 + pause_h / 2.)
+    }
+
+    fn pause_touch_hit(&self, tm: &TimeManager, touch: &Touch) -> bool {
+        if touch.phase != TouchPhase::Started {
+            return false;
+        }
+        let center = self.pause_center(tm);
+        let pos = Point::new(touch.position.x, touch.position.y);
+        let top = -1. / self.res.aspect_ratio;
+        let corner_hit = pos.x <= -0.72 && (top - 0.08..=top + 0.38).contains(&pos.y);
+        self.pause_btn.contains(touch.position) || (center - pos).norm() < 0.12 || corner_hit
+    }
+
+    fn handle_pause_touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
+        if !(self.res.config.interactive && !tm.paused() && self.pause_rewind.is_none() && self.pause_touch_hit(tm, touch)) {
+            return Ok(false);
+        }
+
+        let t = tm.now() as f32;
+        if t - self.pause_first_time > PAUSE_CLICK_INTERVAL && self.res.config.double_click_to_pause {
+            self.pause_first_time = t;
+        } else {
+            self.pause_first_time = f32::NEG_INFINITY;
+            if !self.music.paused() {
+                self.music.pause()?;
+            }
+            tm.pause();
+            #[cfg(target_env = "ohos")]
+            miniquad::native::set_interceptor_state(false);
+        }
+        Ok(true)
+    }
+
     fn ui(&mut self, ui: &mut Ui, tm: &mut TimeManager) -> Result<()> {
         let time = tm.now();
         let p = match self.state {
@@ -382,36 +438,15 @@ impl GameScene {
                 1. - (t / (AFTER_TIME + 0.3)).min(1.).powi(2)
             }
         } as f32;
+        let pause_w = 0.015;
+        let pause_h = pause_w * 3.2;
+        let pause_center = self.pause_center(tm);
+        if let Some(touch) = ui.ensure_touches().iter().find(|touch| self.pause_touch_hit(tm, touch)).cloned() {
+            self.handle_pause_touch(tm, &touch)?;
+        }
         let res = &mut self.res;
         let eps = 2e-2 / res.aspect_ratio;
         let top = -1. / res.aspect_ratio;
-        let pause_w = 0.015;
-        let pause_h = pause_w * 3.2;
-        let pause_center = Point::new(pause_w * 4.0 - 1., top + eps * 3.5 - (1. - p) * 0.4 + pause_h / 2.);
-        if res.config.interactive
-            && !tm.paused()
-            && self.pause_rewind.is_none()
-            && Judge::get_touches().iter().any(|touch| {
-                touch.phase == TouchPhase::Started && {
-                    let p = touch.position;
-                    let p = Point::new(p.x, p.y);
-                    (pause_center - p).norm() < 0.05
-                }
-            })
-        {
-            let t = tm.now() as f32;
-            if t - self.pause_first_time > PAUSE_CLICK_INTERVAL && res.config.double_click_to_pause {
-                self.pause_first_time = t;
-            } else {
-                self.pause_first_time = f32::NEG_INFINITY;
-                if !self.music.paused() {
-                    self.music.pause()?;
-                }
-                tm.pause();
-                #[cfg(target_env = "ohos")]
-                miniquad::native::set_interceptor_state(false);
-            }
-        }
         ui.alpha(res.alpha, |ui| {
             ui.text("MAGIC BUGFIX TEXT").color(Color::new(0., 0., 0., 0.)).draw();
             if tm.now() as f32 - self.pause_first_time <= PAUSE_CLICK_INTERVAL {
@@ -457,6 +492,8 @@ impl GameScene {
                 legacy_aui.then(|| (pause_center.x, pause_center.y)),
                 (pause_center.x - pause_w * 1.5, pause_center.y - pause_h / 2.),
                 |ui, c| {
+                    self.pause_btn
+                        .set(ui, Rect::new(pause_center.x - 0.08, pause_center.y - 0.08, 0.16, 0.16));
                     let mut r = Rect::new(pause_center.x - pause_w * 1.5, pause_center.y - pause_h / 2., pause_w, pause_h);
                     ui.fill_rect(r, c);
                     r.x += pause_w * 2.;
@@ -584,7 +621,7 @@ impl GameScene {
             );
             if res.config.interactive {
                 let mut clicked = None;
-                for touch in Judge::get_touches() {
+                for touch in ui.ensure_touches().iter() {
                     if touch.phase != TouchPhase::Started {
                         continue;
                     }
@@ -683,7 +720,8 @@ impl GameScene {
                 ui.fill_circle(st, -eh, rad, BLUE);
                 if self.exercise_press.is_none() {
                     let r = ui.rect_to_global(Rect::new(st, -eh, 0., 0.).feather(rad));
-                    self.exercise_press = Judge::get_touches()
+                    self.exercise_press = ui
+                        .ensure_touches()
                         .iter()
                         .find(|it| it.phase == TouchPhase::Started && r.contains(it.position))
                         .map(|it| (-1, it.id));
@@ -692,7 +730,8 @@ impl GameScene {
                 ui.fill_circle(en, eh, rad, RED);
                 if self.exercise_press.is_none() {
                     let r = ui.rect_to_global(Rect::new(en, eh, 0., 0.).feather(rad));
-                    self.exercise_press = Judge::get_touches()
+                    self.exercise_press = ui
+                        .ensure_touches()
                         .iter()
                         .find(|it| it.phase == TouchPhase::Started && r.contains(it.position))
                         .map(|it| (1, it.id));
@@ -701,14 +740,15 @@ impl GameScene {
                 ui.fill_circle(cur, 0., rad, GREEN);
                 if self.exercise_press.is_none() {
                     let r = ui.rect_to_global(Rect::new(cur, 0., 0., 0.).feather(rad));
-                    self.exercise_press = Judge::get_touches()
+                    self.exercise_press = ui
+                        .ensure_touches()
                         .iter()
                         .find(|it| it.phase == TouchPhase::Started && r.contains(it.position))
                         .map(|it| (0, it.id));
                 }
                 ui.text(fmt_time(t as f32)).pos(0., -0.23).anchor(0.5, 0.).size(0.8).draw();
                 if let Some((ctrl, id)) = &self.exercise_press {
-                    if let Some(touch) = Judge::get_touches().iter().rfind(|it| it.id == *id) {
+                    if let Some(touch) = ui.ensure_touches().iter().rfind(|it| it.id == *id) {
                         let x = touch.position.x;
                         let p = (x + hw) as f64 / (hw * 2.) as f64 * (self.res.track_length - sp) + sp;
                         let p = if self.res.track_length - sp <= 3. || *ctrl == 0 {
@@ -784,7 +824,8 @@ impl GameScene {
             }
         }
         if self.res.config.touch_debug {
-            for touch in Judge::get_touches() {
+            let touches = ui.ensure_touches().clone();
+            for touch in touches {
                 ui.fill_circle(touch.position.x, touch.position.y, 0.04, Color { a: 0.4, ..RED });
             }
         }
@@ -1052,7 +1093,15 @@ impl Scene for GameScene {
         self.res.time = time;
         if !tm.paused() && self.pause_rewind.is_none() && self.mode != GameMode::View {
             self.gl.quad_gl.viewport(self.res.camera.viewport);
-            self.judge.update(&mut self.res, &mut self.chart, &mut self.bad_notes);
+            if let Some(touch) = Judge::get_touches_with_flip(false)
+                .into_iter()
+                .find(|touch| self.pause_touch_hit(tm, touch))
+            {
+                self.handle_pause_touch(tm, &touch)?;
+            }
+            if !tm.paused() {
+                self.judge.update(&mut self.res, &mut self.chart, &mut self.bad_notes);
+            }
             self.gl.quad_gl.viewport(None);
         }
         if let Some(update) = &mut self.update_fn {
@@ -1152,6 +1201,10 @@ impl Scene for GameScene {
     }
 
     fn touch(&mut self, tm: &mut TimeManager, touch: &Touch) -> Result<bool> {
+        if self.handle_pause_touch(tm, touch)? {
+            return Ok(true);
+        }
+
         if self.mode == GameMode::Exercise && tm.paused() {
             let touch = Touch {
                 position: touch.position * self.touch_scale(),

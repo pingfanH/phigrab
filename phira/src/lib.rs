@@ -23,7 +23,7 @@ mod tags;
 mod threed;
 mod uml;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use core::f64;
 use data::Data;
 use macroquad::prelude::*;
@@ -43,7 +43,7 @@ use std::{
     collections::VecDeque,
     sync::{mpsc, Mutex},
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[cfg(target_os = "android")]
 use jni::{
@@ -104,22 +104,28 @@ pub fn get_data_mut() -> &'static mut Data {
 }
 
 pub fn save_data() -> Result<()> {
-    std::fs::write(format!("{}/data.json", dir::root()?), serde_json::to_string(get_data())?)?;
+    let path = format!("{}/data.json", dir::root()?);
+    std::fs::write(&path, serde_json::to_string(get_data())?).with_context(|| format!("failed to save data to {path}"))?;
     Ok(())
 }
 
 mod dir {
-    use anyhow::Result;
+    use anyhow::{Context, Result};
 
     use crate::{CACHE_DIR, DATA_PATH};
 
     fn ensure(s: &str) -> Result<String> {
-        let s = format!("{}/{}", DATA_PATH.lock().unwrap().as_ref().map(|it| it.as_str()).unwrap_or("."), s);
-        let path = std::path::Path::new(&s);
+        let path = std::path::Path::new(s);
+        let s = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::path::Path::new(DATA_PATH.lock().unwrap().as_ref().map(|it| it.as_str()).unwrap_or(".")).join(s)
+        };
+        let path = s.as_path();
         if !path.exists() {
-            std::fs::create_dir_all(path)?;
+            std::fs::create_dir_all(path).with_context(|| format!("failed to create directory {}", path.display()))?;
         }
-        Ok(s)
+        Ok(s.to_string_lossy().into_owned())
     }
 
     pub fn cache() -> Result<String> {
@@ -165,6 +171,13 @@ mod dir {
 
 async fn the_main() -> Result<()> {
     log::register();
+    #[cfg(target_os = "android")]
+    unsafe {
+        let env = miniquad::native::attach_jni_env();
+        if let Err(err) = inputbox::backend::Android::initialize_raw(env as *mut jni::sys::JNIEnv) {
+            warn!(?err, "failed to initialize Android input backend");
+        }
+    }
     #[cfg(target_env = "ohos")]
     {
         *DATA_PATH.lock().unwrap() = Some("/data/storage/el2/base".to_owned());
@@ -373,10 +386,12 @@ fn on_pause_resume(pause: bool) {
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "C" fn Java_quad_1native_QuadNative_initializeEnvironment(env: EnvUnowned, _class: JClass) {
-    unsafe {
-        inputbox::backend::Android::initialize_raw(env.as_raw()).unwrap();
-    }
+pub extern "C" fn Java_quad_1native_QuadNative_initializeEnvironment(mut env: EnvUnowned, _class: JClass) {
+    env.with_env(|env| -> jni::errors::Result<()> {
+        inputbox::backend::Android::initialize(env)?;
+        Ok(())
+    })
+    .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 }
 
 #[cfg(target_os = "android")]
@@ -405,14 +420,22 @@ pub extern "C" fn Java_quad_1native_QuadNative_prprActivityOnDestroy(_env: EnvUn
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "C" fn Java_quad_1native_QuadNative_setDataPath(_env: EnvUnowned, _class: JClass, path: JString) {
-    *DATA_PATH.lock().unwrap() = Some(path.to_string());
+pub extern "C" fn Java_quad_1native_QuadNative_setDataPath(mut env: EnvUnowned, _class: JClass, path: JString) {
+    let path = env
+        .with_env(|env| -> jni::errors::Result<String> { path.try_to_string(env) })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>();
+    let _ = std::fs::create_dir_all(&path);
+    let _ = std::env::set_current_dir(&path);
+    *DATA_PATH.lock().unwrap() = Some(path);
 }
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "C" fn Java_quad_1native_QuadNative_setTempDir(_env: EnvUnowned, _class: JClass, path: JString) {
-    let path = path.to_string();
+pub extern "C" fn Java_quad_1native_QuadNative_setTempDir(mut env: EnvUnowned, _class: JClass, path: JString) {
+    let path = env
+        .with_env(|env| -> jni::errors::Result<String> { path.try_to_string(env) })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>();
+    let _ = std::fs::create_dir_all(&path);
     std::env::set_var("TMPDIR", path.clone());
     *CACHE_DIR.lock().unwrap() = Some(path);
 }
@@ -425,9 +448,12 @@ pub extern "C" fn Java_quad_1native_QuadNative_setDpi(_env: EnvUnowned, _class: 
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "C" fn Java_quad_1native_QuadNative_setChosenFile(_env: EnvUnowned, _class: JClass, file: JString) {
+pub extern "C" fn Java_quad_1native_QuadNative_setChosenFile(mut env: EnvUnowned, _class: JClass, file: JString) {
     use prpr::scene::CHOSEN_FILE;
-    CHOSEN_FILE.lock().unwrap().1 = Some(file.to_string());
+    let file = env
+        .with_env(|env| -> jni::errors::Result<String> { file.try_to_string(env) })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>();
+    CHOSEN_FILE.lock().unwrap().1 = Some(file);
 }
 
 #[cfg(target_os = "android")]
@@ -448,9 +474,12 @@ pub extern "C" fn Java_quad_1native_QuadNative_markImportRespack(_env: EnvUnowne
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "C" fn Java_quad_1native_QuadNative_setInputText(_env: EnvUnowned, _class: JClass, text: JString) {
+pub extern "C" fn Java_quad_1native_QuadNative_setInputText(mut env: EnvUnowned, _class: JClass, text: JString) {
     use prpr::scene::INPUT_TEXT;
-    INPUT_TEXT.lock().unwrap().1 = Some(text.to_string());
+    let text = env
+        .with_env(|env| -> jni::errors::Result<String> { text.try_to_string(env) })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>();
+    INPUT_TEXT.lock().unwrap().1 = Some(text);
 }
 
 #[cfg(not(all(target_os = "android", feature = "aa")))]

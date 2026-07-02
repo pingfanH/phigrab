@@ -1,39 +1,43 @@
 {
   "id": "phira",
-  "name": "Phira 判定联动",
+  "name": "Phira",
   "version": "0.1.0",
   "sdk": "1",
-  "author": "phira",
-  "description": "把 Phira 的 Perfect/Good/Bad/Miss 判定映射为电击触发。Phira 由你手动启动并自行连接，本插件只提供配置页（无 entry，不由 DGHub 启动）。",
+  "author": "pingfanH",
+  "description": "把 Phira 的 Perfect/Good/Bad/Miss 判定映射为电击触发。可在 Phira 设置中选择用 DGHub 端或 Phira 端配置。",
   "config_schema": [
     {
+      "section": "通用",
       "fields": [
-        { "type": "channel", "label": "输出通道", "default": "both" },
-        { "type": "number", "label": "节流(ms)", "default": 80, "min": 0, "max": 1000, "description": "同一判定档在该间隔内多次命中只触发一次" }
+        { "key": "channel", "type": "channel", "label": "输出通道", "default": "both" },
+        { "key": "throttle_ms", "type": "number", "label": "节流(ms)", "default": 80, "min": 0, "max": 1000, "description": "同一判定档在该间隔内多次命中只触发一次" }
       ]
     },
     {
+      "section": "Miss",
       "fields": [
-        { "type": "bool", "label": "Miss 触发", "default": true },
-        { "type": "percent", "label": "Miss 强度", "default": 60 },
-        { "type": "duration", "label": "Miss 时长", "default": 1.5 },
-        { "type": "preset", "label": "Miss 波形", "default": "CS2-受伤" }
+        { "key": "miss_enable", "type": "bool", "label": "Miss 触发", "default": true },
+        { "key": "miss_strength", "type": "percent", "label": "Miss 强度", "default": 60 },
+        { "key": "miss_duration", "type": "duration", "label": "Miss 时长", "default": 1.5 },
+        { "key": "miss_preset", "type": "preset", "label": "Miss 波形", "default": "CS2-受伤" }
       ]
     },
     {
+      "section": "Bad",
       "fields": [
-        { "type": "bool", "label": "Bad 触发", "default": true },
-        { "type": "percent", "label": "Bad 强度", "default": 35 },
-        { "type": "duration", "label": "Bad 时长", "default": 1.0 },
-        { "type": "preset", "label": "Bad 波形", "default": "CS2-受伤" }
+        { "key": "bad_enable", "type": "bool", "label": "Bad 触发", "default": true },
+        { "key": "bad_strength", "type": "percent", "label": "Bad 强度", "default": 35 },
+        { "key": "bad_duration", "type": "duration", "label": "Bad 时长", "default": 1.0 },
+        { "key": "bad_preset", "type": "preset", "label": "Bad 波形", "default": "CS2-受伤" }
       ]
     },
     {
+      "section": "Perfect / Good",
       "fields": [
-        { "type": "bool", "label": "Good 触发", "default": false },
-        { "type": "percent", "label": "Good 强度", "default": 20 },
-        { "type": "bool", "label": "Perfect 触发", "default": false },
-        { "type": "percent", "label": "Perfect 强度", "default": 10 }
+        { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": false },
+        { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 20 },
+        { "key": "perfect_enable", "type": "bool", "label": "Perfect 触发", "default": false },
+        { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 }
       ]
     }
   ]
