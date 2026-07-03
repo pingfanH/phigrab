@@ -369,7 +369,7 @@ impl HomePage {
 
 impl Page for HomePage {
     fn label(&self) -> Cow<'static, str> {
-        "PHIRA".into()
+        "PHIGRAB".into()
     }
 
     fn enter(&mut self, s: &mut SharedState) -> Result<()> {

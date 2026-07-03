@@ -222,7 +222,7 @@
 					"$(PROJECT_DIR)",
 				);
 				INFOPLIST_FILE = phira.app/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Phira-dglab";
+				INFOPLIST_KEY_CFBundleDisplayName = "Phigrab";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -230,8 +230,8 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.flos.phira;
-				PRODUCT_NAME = "Phira-dglab";
+				PRODUCT_BUNDLE_IDENTIFIER = com.pingfanh.phigrab;
+				PRODUCT_NAME = "Phigrab";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -318,7 +318,7 @@
 					"$(PROJECT_DIR)",
 				);
 				INFOPLIST_FILE = phira.app/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Phira-dglab";
+				INFOPLIST_KEY_CFBundleDisplayName = "Phigrab";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -326,8 +326,8 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.flos.phira;
-				PRODUCT_NAME = "Phira-dglab";
+				PRODUCT_BUNDLE_IDENTIFIER = com.pingfanh.phigrab;
+				PRODUCT_NAME = "Phigrab";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

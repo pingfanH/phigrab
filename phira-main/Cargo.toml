@@ -5,8 +5,8 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [package.metadata.android]
-package_name = "com.pingfanh.phira"
-label = "Phira-dglab"
+package_name = "com.pingfanh.phigrab"
+label = "Phigrab"
 assets = "../assets"
 res = "android-res"
 icon = "@mipmap/ic_launcher"

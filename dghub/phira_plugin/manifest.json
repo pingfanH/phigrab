@@ -11,7 +11,7 @@
       "fields":[
           { "key": "info", "type": "text", "label": "需要下载定制过的phira,可以在q群或github下载", "default": "", "description": "复制到浏览器打开" },
   
-          { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phira-dglab", "description": "复制到浏览器打开" },
+          { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phigrab", "description": "复制到浏览器打开" },
         { "key": "qq_url", "type": "text", "label": "q群", "default": "229380808", "description": "复制到qq搜索" }
      
       ]

@@ -386,7 +386,7 @@ fn show_and_exit(msg: &str) {
 
 fn build_global_window_conf() -> Conf {
     let mut conf = build_conf();
-    conf.window_title = "Phira-dglab".to_owned();
+    conf.window_title = "Phigrab".to_owned();
     conf.icon = Some(miniquad::conf::Icon {
         small: *include_bytes!("../icon/small"),
         medium: *include_bytes!("../icon/medium"),

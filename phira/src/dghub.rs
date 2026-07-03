@@ -630,7 +630,7 @@ fn hello_message(token: &str) -> Value {
             "description": "把 Phira 的 Perfect/Good/Bad/Miss 判定映射为电击触发。",
             "config_schema": [
                 { "section": "通用", "fields": [
-                    { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phira-dglab", "description": "仅展示，可复制" },
+                    { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phigrab", "description": "仅展示，可复制" },
                     { "key": "channel", "type": "channel", "label": "输出通道", "default": "both" },
                     { "key": "throttle_ms", "type": "number", "label": "节流(ms)", "default": 80, "min": 0, "max": 1000, "description": "同一判定档在该间隔内多次命中只触发一次" }
                 ]},

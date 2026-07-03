@@ -37,7 +37,7 @@ const ITEM_HEIGHT: f32 = 0.15;
 const INTERACT_WIDTH: f32 = 0.26;
 const STATUS_PAGE: &str = "https://status.phira.cn";
 const DGHUB_AUTHOR_URL: &str = "https://github.com/pingfanH";
-const DGHUB_REPO_URL: &str = "https://github.com/pingfanH/phira-dglab";
+const DGHUB_REPO_URL: &str = "https://github.com/pingfanH/phigrab";
 const DGHUB_SITE_URL: &str = "http://dghub.top/";
 const DGHUB_QQ_URL: &str = "https://qm.qq.com/q/FlGLR7Mfmy";
 
