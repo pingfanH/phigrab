@@ -13,12 +13,20 @@ from PIL import Image, ImageOps
 
 SIZES = (16, 32, 64)
 NAME_BY_SIZE = {16: "small", 32: "medium", 64: "big"}
+ANDROID_MIPMAP_SIZES = {
+    "mipmap-mdpi": 48,
+    "mipmap-hdpi": 72,
+    "mipmap-xhdpi": 96,
+    "mipmap-xxhdpi": 144,
+    "mipmap-xxxhdpi": 192,
+}
 
 
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
     default_input = repo_root / "assets" / "icon.png"
     default_output_dir = repo_root / "phira" / "icon"
+    default_android_res_dir = repo_root / "phira-main" / "android-res"
 
     parser = argparse.ArgumentParser(
         description=(
@@ -45,6 +53,12 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Optional file extension (e.g. .rgba). Default: no extension.",
     )
+    parser.add_argument(
+        "--android-res-dir",
+        type=Path,
+        default=default_android_res_dir,
+        help=f"Android resource output directory (default: {default_android_res_dir})",
+    )
     return parser.parse_args()
 
 
@@ -68,9 +82,23 @@ def generate_icon_bytes(input_path: Path, output_dir: Path, ext: str) -> None:
         print(f"Wrote {len(buf)} bytes to {output_path}")
 
 
+def generate_android_icons(input_path: Path, output_dir: Path) -> None:
+    resample = getattr(Image, "Resampling", Image).LANCZOS
+    img = Image.open(input_path).convert("RGBA")
+
+    for folder, size in ANDROID_MIPMAP_SIZES.items():
+        target_dir = output_dir / folder
+        target_dir.mkdir(parents=True, exist_ok=True)
+        resized = ImageOps.fit(img, (size, size), method=resample)
+        output_path = target_dir / "ic_launcher.png"
+        resized.save(output_path, format="PNG")
+        print(f"Wrote {size}x{size} PNG to {output_path}")
+
+
 def main() -> None:
     args = parse_args()
     generate_icon_bytes(args.input, args.output_dir, args.ext)
+    generate_android_icons(args.input, args.android_res_dir)
 
 
 if __name__ == "__main__":

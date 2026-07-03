@@ -175,14 +175,33 @@ public class MainActivity extends Activity {
     //% MAIN_ACTIVITY_BODY
 
     private QuadSurface view;
+    private static boolean nativeLibraryLoaded = false;
 
-    static {
-        System.loadLibrary("LIBRARY_NAME");
+    private void ensureNativeLibraryLoaded() {
+        if (nativeLibraryLoaded) {
+            return;
+        }
+        String libraryName = "LIBRARY_NAME";
+        try {
+            android.content.pm.ActivityInfo activityInfo =
+                getPackageManager().getActivityInfo(getComponentName(), android.content.pm.PackageManager.GET_META_DATA);
+            if (activityInfo.metaData != null) {
+                String manifestLibraryName = activityInfo.metaData.getString("android.app.lib_name");
+                if (manifestLibraryName != null && !manifestLibraryName.isEmpty()) {
+                    libraryName = manifestLibraryName;
+                }
+            }
+        } catch (Throwable err) {
+            Log.w("SAPP", "failed to read lib_name metadata", err);
+        }
+        System.loadLibrary(libraryName);
+        nativeLibraryLoaded = true;
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ensureNativeLibraryLoaded();
 
         this.requestWindowFeature(Window.FEATURE_NO_TITLE);
 

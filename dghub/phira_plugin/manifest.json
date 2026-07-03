@@ -4,12 +4,21 @@
   "version": "0.1.0",
   "sdk": "1",
   "author": "pingfanH",
-  "description": "把 Phira 的 Perfect/Good/Bad/Miss 判定映射为电击触发。可在 Phira 设置中选择用 DGHub 端或 Phira 端配置。",
+  "description": "把 Phira 的 判定映射为电击触发。",
   "config_schema": [
+    {
+        "section": "信息",
+      "fields":[
+          { "key": "info", "type": "text", "label": "需要下载定制过的phira,可以在q群或github下载", "default": "", "description": "复制到浏览器打开" },
+  
+          { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phira-dglab", "description": "复制到浏览器打开" },
+        { "key": "qq_url", "type": "text", "label": "q群", "default": "229380808", "description": "复制到qq搜索" }
+     
+      ]
+    },
     {
       "section": "通用",
       "fields": [
-        { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phira-dglab", "description": "仅展示，可复制" },
         { "key": "channel", "type": "channel", "label": "输出通道", "default": "both" },
         { "key": "throttle_ms", "type": "number", "label": "节流(ms)", "default": 80, "min": 0, "max": 1000, "description": "同一判定档在该间隔内多次命中只触发一次" }
       ]
@@ -37,8 +46,12 @@
       "fields": [
         { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": false },
         { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 20 },
+        { "key": "good_duration", "type": "duration", "label": "Good 时长", "default": 1.0 },
+        { "key": "good_preset", "type": "preset", "label": "Good 波形", "default": "" },
         { "key": "perfect_enable", "type": "bool", "label": "Perfect 触发", "default": false },
-        { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 }
+        { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 },
+        { "key": "perfect_duration", "type": "duration", "label": "Perfect 时长", "default": 1.0 },
+        { "key": "perfect_preset", "type": "preset", "label": "Perfect 波形", "default": "" }
       ]
     }
   ]

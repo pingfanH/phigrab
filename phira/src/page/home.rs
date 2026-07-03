@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     anim::Anim,
-    client::{recv_raw, Character, Client, LoginParams, User, UserManager},
+    client::{absolute_get, recv_raw, Character, Client, LoginParams, User, UserManager},
     dir, get_data, get_data_mut,
     icons::Icons,
     login::Login,
@@ -39,7 +39,7 @@ use tracing::{info, warn};
 
 const BOARD_SWITCH_TIME: f32 = 4.;
 const BOARD_TRANSIT_TIME: f32 = 1.2;
-const CHAR_ILLU_SCALE: f32 = 0.82;
+const CHECK_UPDATE_URL: &str = "https://phira.pingfanh.top/check-update";
 
 type BoldFontUpdateTask = Task<Result<Option<(FontArc, String)>>>;
 
@@ -160,7 +160,7 @@ impl HomePage {
             has_new: false,
 
             check_update_task: Some(Task::new(async move {
-                Ok(recv_raw(Client::get("/check-update").query(&[("version", env!("CARGO_PKG_VERSION")), ("flavor", &flavor)]))
+                Ok(recv_raw(absolute_get(CHECK_UPDATE_URL).query(&[("version", env!("CARGO_PKG_VERSION")), ("flavor", &flavor)]))
                     .await?
                     .json()
                     .await?)
@@ -269,12 +269,6 @@ impl HomePage {
             let h = bounds.w / tex_ratio;
             Rect::new(bounds.x, bounds.y + (bounds.h - h) / 2., bounds.w, h)
         }
-    }
-
-    fn scale_rect_from_bottom(rect: Rect, scale: f32) -> Rect {
-        let w = rect.w * scale;
-        let h = rect.h * scale;
-        Rect::new(rect.x + (rect.w - w) / 2., rect.bottom() - h, w, h)
     }
 
     fn render_not_char(&mut self, ui: &mut Ui, s: &mut SharedState) {
@@ -549,7 +543,9 @@ impl Page for HomePage {
                         warn!("fail to check update {:?}", err);
                     }
                     Ok(Some(ver)) => {
-                        if get_data().ignored_version.as_ref().is_none_or(|it| it < &ver.version) {
+                        let current_version =
+                            semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("package version should be valid semver");
+                        if ver.version > current_version && get_data().ignored_version.as_ref().is_none_or(|it| it < &ver.version) {
                             Dialog::plain(
                                 tl!("update", "version" => ver.version.to_string()),
                                 tl!("update-desc", "date" => ver.date.to_string(), "desc" => ver.description),
@@ -623,12 +619,11 @@ impl Page for HomePage {
 
         let cp = self.char_screen_p.now(rt);
         s.render_fader(ui, |ui| {
-            let r = Rect::new(-1. + 0.14 * cp, -ui.top + 0.12, 1., 1.7);
+            let r = Rect::new(-0.9 + 0.14 * cp, -ui.top + 0.12, 1., 1.7);
             if let Some(illu) = &self.char_illu {
                 let p = self.char_appear_p.now(t);
-                let (ox, oy, ow, oh) = self.character.illu_adjust;
-                let bounds = Rect::new(r.x + ox, r.y + (1. - p) * 0.05 + oy, r.w + ow, r.h + oh);
-                let r = Self::scale_rect_from_bottom(Self::fit_texture_rect(bounds, illu), CHAR_ILLU_SCALE);
+                let bounds = Rect::new(-0.84 + 0.14 * cp, -ui.top + 0.06 + (1. - p) * 0.05, 0.58, 1.1);
+                let r = Self::fit_texture_rect(bounds, illu);
                 ui.fill_rect(r, (**illu, r, ScaleType::Fit, semi_white(p)));
             }
             self.char_btn.set(ui, r);

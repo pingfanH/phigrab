@@ -4,6 +4,13 @@ version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 
+[package.metadata.android]
+package_name = "com.pingfanh.phira"
+label = "Phira-dglab"
+assets = "../assets"
+res = "android-res"
+icon = "@mipmap/ic_launcher"
+
 [features]
 default = ["video"]
 video = ["phira/video"]

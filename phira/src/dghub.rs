@@ -307,6 +307,16 @@ impl Mapping {
                     self.good.delta = n as i32;
                 }
             }
+            "good_duration" => {
+                if let Some(n) = v.as_f64() {
+                    self.good.duration = n;
+                }
+            }
+            "good_preset" => {
+                if let Some(s) = v.as_str() {
+                    self.good.preset = s.to_owned();
+                }
+            }
             "perfect_enable" => {
                 if let Some(b) = v.as_bool() {
                     self.perfect.enable = b;
@@ -315,6 +325,16 @@ impl Mapping {
             "perfect_strength" => {
                 if let Some(n) = v.as_i64() {
                     self.perfect.delta = n as i32;
+                }
+            }
+            "perfect_duration" => {
+                if let Some(n) = v.as_f64() {
+                    self.perfect.duration = n;
+                }
+            }
+            "perfect_preset" => {
+                if let Some(s) = v.as_str() {
+                    self.perfect.preset = s.to_owned();
                 }
             }
             _ => {
@@ -629,8 +649,12 @@ fn hello_message(token: &str) -> Value {
                 { "section": "Perfect / Good", "fields": [
                     { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": false },
                     { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 20 },
+                    { "key": "good_duration", "type": "duration", "label": "Good 时长", "default": 1.0 },
+                    { "key": "good_preset", "type": "preset", "label": "Good 波形", "default": "" },
                     { "key": "perfect_enable", "type": "bool", "label": "Perfect 触发", "default": false },
-                    { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 }
+                    { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 },
+                    { "key": "perfect_duration", "type": "duration", "label": "Perfect 时长", "default": 1.0 },
+                    { "key": "perfect_preset", "type": "preset", "label": "Perfect 波形", "default": "" }
                 ]}
             ]
         }
