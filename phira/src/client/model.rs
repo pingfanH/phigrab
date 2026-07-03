@@ -16,7 +16,7 @@ pub use record::*;
 mod user;
 pub use user::*;
 
-use super::{basic_client_builder, Client, API_URL, CLIENT_TOKEN};
+use super::{absolute_get, Client, API_URL};
 use crate::{
     dir, get_data,
     images::{THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH},
@@ -25,6 +25,7 @@ use anyhow::{bail, Result};
 use bytes::Bytes;
 use image::DynamicImage;
 use lru::LruCache;
+use macroquad::file::load_file;
 use once_cell::sync::Lazy;
 use reqwest::Response;
 use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
@@ -182,21 +183,16 @@ pub struct File {
 }
 impl File {
     fn request(&self) -> reqwest::RequestBuilder {
-        let mut req = basic_client_builder().build().unwrap().get(&self.url);
+        let mut url = self.url.clone();
         // TODO: thread safety?
         if get_data().enable_anys {
             if let Some(path) = self.url.strip_prefix(API_URL) {
                 if let Some(rest_path) = path.strip_prefix("/files/") {
-                    let url = format!("{API_URL}/anys/{rest_path}");
-                    req = basic_client_builder().build().unwrap().get(url);
+                    url = format!("{API_URL}/anys/{rest_path}");
                 }
             }
         }
-        if let Some(token) = CLIENT_TOKEN.load().as_ref() {
-            req.header("Authorization", format!("Bearer {token}"))
-        } else {
-            req
-        }
+        absolute_get(url)
     }
 
     pub async fn fetch(&self) -> Result<Bytes> {
@@ -278,12 +274,12 @@ pub struct Character {
 impl Default for Character {
     fn default() -> Self {
         Self {
-            id: "shee".to_owned(),
+            id: "yamada_ryo".to_owned(),
             name: ttl!("main-character-name").into_owned(),
             intro: ttl!("main-character-intro").into_owned(),
-            illust: "@".to_owned(),
-            artist: "清水QR".to_owned(),
-            designer: "清水QR".to_owned(),
+            illust: "asset:yamada.png".to_owned(),
+            artist: "孤独摇滚".to_owned(),
+            designer: "孤独摇滚".to_owned(),
 
             name_size: None,
 
@@ -291,11 +287,15 @@ impl Default for Character {
 
             illu_adjust: (0., 0., 0., 0.),
 
-            name_en: None,
+            name_en: Some("YamadaRyo".to_owned()),
         }
     }
 }
 impl Character {
+    pub fn is_legacy_main_character(&self) -> bool {
+        self.id == "shee" && self.illust == "@" && self.artist == "清水QR" && self.designer == "清水QR"
+    }
+
     pub fn name_en(&mut self) -> &str {
         if self.name_en.is_none() {
             let words = self.id.split('_');
@@ -312,5 +312,32 @@ impl Character {
             self.name_en = Some(name_en);
         }
         self.name_en.as_ref().unwrap()
+    }
+
+    pub async fn load_illustration(&self) -> Result<DynamicImage> {
+        if self.illust == "@" {
+            let id = self.id.clone();
+            #[cfg(closed)]
+            {
+                return Ok(image::load_from_memory(&crate::inner::resolve_data(load_file(&format!("res/{id}.char")).await?))?);
+            }
+            #[cfg(not(closed))]
+            {
+                bail!("local character illustration is unavailable in this build: {id}");
+            }
+        } else if let Some(asset) = self.illust.strip_prefix("asset:") {
+            Ok(image::load_from_memory(&load_file(asset).await?)?)
+        } else {
+            let file = File { url: self.illust.clone() };
+            let bytes = file.fetch().await?;
+            #[cfg(closed)]
+            {
+                Ok(image::load_from_memory(&crate::inner::resolve_data(bytes.to_vec()))?)
+            }
+            #[cfg(not(closed))]
+            {
+                Ok(image::load_from_memory(&bytes)?)
+            }
+        }
     }
 }

@@ -34,8 +34,16 @@ item-anys-gateway = Anys 网关
 item-anys-gateway-sub = Anys 网关地址
 item-anys-gateway-invalid = 无效的网关地址
 
-item-dghub = DGHub 联动
-item-dghub-sub = 用 Perfect/Good/Bad/Miss 判定驱动 DGHub 触发（映射在 DGHub 里配置）
+item-dghub = 外部连接
+item-dghub-sub = 连接到 DGHub / dglab 外部服务
+item-dghub-author = 制作 pingfanh
+item-dghub-project = 项目名 phira-dglab
+item-dghub-link = DGHub 链接
+item-dghub-qq = QQ群 229380808
+item-dghub-note = 说明
+item-dghub-note-sub = 在 dglab 中查看
+item-dghub-open-github = GitHub
+item-dghub-open-browser = 浏览器
 item-dghub-host = DGHub 主机
 item-dghub-host-sub = DGHub API 主机，一般为 127.0.0.1
 item-dghub-port = DGHub 端口
@@ -56,7 +64,7 @@ item-dghub-duration = 时长 (秒)
 item-dghub-preset = 波形预设
 item-dghub-channel = 输出通道
 item-dghub-throttle = 节流 (ms)
-dghub = DGHub 联动
+dghub = 外部连接
 
 item-adjust = 自动对齐时间
 item-adjust-sub = 自动调整延迟以同步音乐和谱面

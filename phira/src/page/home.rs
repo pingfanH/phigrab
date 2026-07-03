@@ -28,7 +28,6 @@ use prpr::{
     task::Task,
     ui::{button_hit_large, clip_rounded_rect, ClipType, DRectButton, Dialog, FontArc, RectButton, Scroll, Ui},
 };
-use prpr_l10n::LANG_IDENTS;
 use reqwest::StatusCode;
 use serde::Deserialize;
 use std::{
@@ -40,6 +39,7 @@ use tracing::{info, warn};
 
 const BOARD_SWITCH_TIME: f32 = 4.;
 const BOARD_TRANSIT_TIME: f32 = 1.2;
+const CHAR_ILLU_SCALE: f32 = 0.82;
 
 type BoldFontUpdateTask = Task<Result<Option<(FontArc, String)>>>;
 
@@ -88,8 +88,6 @@ pub struct HomePage {
     character: Character,
     char_appear_p: Anim<f32>,
     char_last_illu: Option<String>,
-    char_last_user_id: Option<i32>,
-    char_fetch_task: Option<Task<Result<Character>>>,
     char_illu: Option<SafeTexture>,
     char_illu_task: Option<Task<Result<DynamicImage>>>,
     // progress of character screen
@@ -125,6 +123,13 @@ impl HomePage {
             Ok(Ok(flavor)) => flavor.trim().to_owned(),
             _ => "none".to_owned(),
         };
+
+        let mut character = get_data().character.clone().unwrap_or_default();
+        if character.is_legacy_main_character() || !character.illust.starts_with("asset:") {
+            character = Character::default();
+            get_data_mut().character = Some(character.clone());
+            let _ = save_data();
+        }
 
         let mut res = Self {
             icons: Arc::new(Icons::new().await?),
@@ -196,11 +201,9 @@ impl HomePage {
                 it.sync();
             }),
 
-            character: get_data().character.clone().unwrap_or_default(),
+            character,
             char_appear_p: Anim::new(0.),
             char_last_illu: None,
-            char_last_user_id: None,
-            char_fetch_task: None,
             char_illu: None,
             char_illu_task: None,
             char_screen_p: Anim::new(0.),
@@ -232,21 +235,8 @@ impl HomePage {
         self.char_last_illu = Some(key);
 
         self.char_appear_p.set(0.);
-
-        #[cfg(closed)]
-        if self.character.illust == "@" {
-            let id = self.character.id.clone();
-            self.char_illu_task =
-                Some(Task::new(
-                    async move { Ok(image::load_from_memory(&crate::inner::resolve_data(load_file(&format!("res/{id}.char")).await?))?) },
-                ));
-        } else {
-            let file = crate::page::File {
-                url: self.character.illust.clone(),
-            };
-            self.char_illu_task =
-                Some(Task::new(async move { Ok(image::load_from_memory(&crate::inner::resolve_data(file.fetch().await?.to_vec()))?) }));
-        }
+        let character = self.character.clone();
+        self.char_illu_task = Some(Task::new(async move { character.load_illustration().await }));
     }
 
     fn fetch_has_new(&mut self) {
@@ -267,6 +257,24 @@ impl HomePage {
                 .await?;
             Ok(resp.has)
         }));
+    }
+
+    fn fit_texture_rect(bounds: Rect, tex: &SafeTexture) -> Rect {
+        let tex_ratio = tex.width() / tex.height();
+        let bounds_ratio = bounds.w / bounds.h;
+        if bounds_ratio > tex_ratio {
+            let w = bounds.h * tex_ratio;
+            Rect::new(bounds.x + (bounds.w - w) / 2., bounds.y, w, bounds.h)
+        } else {
+            let h = bounds.w / tex_ratio;
+            Rect::new(bounds.x, bounds.y + (bounds.h - h) / 2., bounds.w, h)
+        }
+    }
+
+    fn scale_rect_from_bottom(rect: Rect, scale: f32) -> Rect {
+        let w = rect.w * scale;
+        let h = rect.h * scale;
+        Rect::new(rect.x + (rect.w - w) / 2., rect.bottom() - h, w, h)
     }
 
     fn render_not_char(&mut self, ui: &mut Ui, s: &mut SharedState) {
@@ -414,7 +422,7 @@ impl Page for HomePage {
                 return Ok(true);
             }
             if self.btn_settings.touch(touch, t) {
-                self.next_page = Some(NextPage::Overlay(Box::new(SettingsPage::new(self.icons.icon.clone(), self.icons.lang.clone()))));
+                self.next_page = Some(NextPage::Overlay(Box::new(SettingsPage::new(Arc::clone(&self.icons)))));
                 return Ok(true);
             }
         } else {
@@ -457,18 +465,7 @@ impl Page for HomePage {
     fn update(&mut self, s: &mut SharedState) -> Result<()> {
         let t = s.t;
         self.login.update(t)?;
-        let current_user = Some(get_data().me.as_ref().map_or(-1, |it| it.id));
         self.char_scroll.update(t);
-        if self.char_last_user_id != current_user {
-            let locale = get_data().language.clone().unwrap_or(LANG_IDENTS[0].to_string());
-            self.char_last_user_id = current_user;
-            if get_data().config.offline_mode || get_data().me.is_none() || get_data().tokens.is_none() {
-                self.char_fetch_task = None;
-            } else {
-                self.char_fetch_task =
-                    Some(Task::new(async move { Ok(recv_raw(Client::get("/me/char").query(&[("locale", locale)])).await?.json().await?) }));
-            }
-        }
         if let Some(task) = &mut self.update_task {
             if let Some(res) = task.take() {
                 match res {
@@ -613,24 +610,6 @@ impl Page for HomePage {
                 self.char_illu_task = None;
             }
         }
-        if let Some(task) = &mut self.char_fetch_task {
-            if let Some(res) = task.take() {
-                match res {
-                    Err(err) => {
-                        warn!(?err, "fail to load char");
-                    }
-                    Ok(char) => {
-                        info!(?char, "char loaded");
-                        self.character = char;
-                        get_data_mut().character = Some(self.character.clone());
-                        let _ = save_data();
-                        self.char_cached_size = 0.;
-                        self.load_char_illu();
-                    }
-                }
-                self.char_fetch_task = None;
-            }
-        }
         if JUST_LOADED_TOS.fetch_and(false, Ordering::Relaxed) {
             check_read_tos_and_policy(true, true);
         }
@@ -648,8 +627,9 @@ impl Page for HomePage {
             if let Some(illu) = &self.char_illu {
                 let p = self.char_appear_p.now(t);
                 let (ox, oy, ow, oh) = self.character.illu_adjust;
-                let r = Rect::new(r.x + ox, r.y + (1. - p) * 0.05 + oy, r.w + ow, r.h + oh);
-                ui.fill_rect(ui.screen_rect(), (**illu, r, ScaleType::CropCenter, semi_white(p)));
+                let bounds = Rect::new(r.x + ox, r.y + (1. - p) * 0.05 + oy, r.w + ow, r.h + oh);
+                let r = Self::scale_rect_from_bottom(Self::fit_texture_rect(bounds, illu), CHAR_ILLU_SCALE);
+                ui.fill_rect(r, (**illu, r, ScaleType::Fit, semi_white(p)));
             }
             self.char_btn.set(ui, r);
 

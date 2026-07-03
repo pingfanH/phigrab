@@ -3,6 +3,7 @@ prpr_l10n::tl_file!("settings");
 use super::{NextPage, OffsetPage, Page, SharedState};
 use crate::{
     dir, get_data, get_data_mut,
+    icons::Icons,
     popup::ChooseButton,
     save_data,
     scene::BGM_VOLUME_UPDATED,
@@ -16,7 +17,7 @@ use macroquad::prelude::*;
 use once_cell::sync::Lazy;
 use prpr::{
     core::BOLD_FONT,
-    ext::{open_url, poll_future, semi_white, LocalTask, RectExt, SafeTexture},
+    ext::{open_url, poll_future, semi_white, LocalTask, RectExt, SafeTexture, ScaleType},
     scene::{request_input, return_input, show_error, show_message, take_input},
     task::Task,
     ui::{DRectButton, Scroll, Slider, Ui, PREFER_REDUCED_MOTION},
@@ -24,11 +25,21 @@ use prpr::{
 use prpr_l10n::{LanguageIdentifier, LANG_IDENTS, LANG_NAMES};
 use reqwest::Url;
 use serde::Deserialize;
-use std::{borrow::Cow, fs, io, net::ToSocketAddrs, path::PathBuf, sync::atomic::Ordering};
+use std::{
+    borrow::Cow,
+    fs, io,
+    net::ToSocketAddrs,
+    path::PathBuf,
+    sync::{atomic::Ordering, Arc},
+};
 
 const ITEM_HEIGHT: f32 = 0.15;
 const INTERACT_WIDTH: f32 = 0.26;
 const STATUS_PAGE: &str = "https://status.phira.cn";
+const DGHUB_AUTHOR_URL: &str = "https://github.com/pingfanH";
+const DGHUB_REPO_URL: &str = "https://github.com/pingfanH/phira-dglab";
+const DGHUB_SITE_URL: &str = "http://dghub.top/";
+const DGHUB_QQ_URL: &str = "https://qm.qq.com/q/FlGLR7Mfmy";
 
 struct NameList(String);
 impl<'de> Deserialize<'de> for NameList {
@@ -155,13 +166,13 @@ pub struct SettingsPage {
 impl SettingsPage {
     const SAVE_TIME: f32 = 0.5;
 
-    pub fn new(icon: SafeTexture, icon_lang: SafeTexture) -> Self {
+    pub fn new(icons: Arc<Icons>) -> Self {
         Self {
-            list_general: GeneralList::new(icon_lang),
+            list_general: GeneralList::new(icons.lang.clone()),
             list_audio: AudioList::new(),
             list_chart: ChartList::new(),
             list_debug: DebugList::new(),
-            list_dghub: DghubList::new(),
+            list_dghub: DghubList::new(icons.github.clone(), icons.browser.clone(), icons.qq.clone()),
 
             tabs: Tabs::new([
                 (SettingListType::General, || tl!("general")),
@@ -175,7 +186,7 @@ impl SettingsPage {
             scroll: Scroll::new(),
             save_time: f32::INFINITY,
 
-            icon,
+            icon: icons.icon.clone(),
         }
     }
 }
@@ -386,6 +397,18 @@ fn render_switch(ui: &mut Ui, r: Rect, t: f32, btn: &mut DRectButton, on: bool) 
 fn right_rect(w: f32) -> Rect {
     let rh = ITEM_HEIGHT * 2. / 3.;
     Rect::new(w - 0.3, (ITEM_HEIGHT - rh) / 2., INTERACT_WIDTH, rh)
+}
+
+#[inline]
+fn icon_rect(r: Rect) -> Rect {
+    Rect::new(r.right() - r.h, r.y, r.h, r.h)
+}
+
+fn render_link_button(ui: &mut Ui, r: Rect, t: f32, btn: &mut DRectButton, icon: &SafeTexture) {
+    btn.render_shadow(ui, r, t, |ui, path| {
+        ui.fill_path(&path, semi_white(0.9));
+        ui.fill_rect(r.feather(-0.018), (**icon, r.feather(-0.018), ScaleType::Fit, Color::new(0.18, 0.18, 0.2, 1.)));
+    });
 }
 
 struct GeneralList {
@@ -1008,6 +1031,13 @@ impl DebugList {
 // ===========================================================================
 
 struct DghubList {
+    github_icon: SafeTexture,
+    browser_icon: SafeTexture,
+    qq_icon: SafeTexture,
+    author_btn: DRectButton,
+    repo_btn: DRectButton,
+    site_btn: DRectButton,
+    qq_btn: DRectButton,
     enable_btn: DRectButton,
     host_btn: DRectButton,
     port_btn: DRectButton,
@@ -1035,9 +1065,16 @@ struct DghubList {
 }
 
 impl DghubList {
-    pub fn new() -> Self {
+    pub fn new(github_icon: SafeTexture, browser_icon: SafeTexture, qq_icon: SafeTexture) -> Self {
         let b = || DRectButton::new();
         Self {
+            github_icon,
+            browser_icon,
+            qq_icon,
+            author_btn: b(),
+            repo_btn: b(),
+            site_btn: b(),
+            qq_btn: b(),
             enable_btn: b(),
             host_btn: b(),
             port_btn: b(),
@@ -1072,6 +1109,22 @@ impl DghubList {
     pub fn touch(&mut self, touch: &Touch, t: f32) -> Result<Option<bool>> {
         let data = get_data_mut();
         let cfg = &mut data.config;
+        if self.author_btn.touch(touch, t) {
+            let _ = open_url(DGHUB_AUTHOR_URL);
+            return Ok(Some(false));
+        }
+        if self.repo_btn.touch(touch, t) {
+            let _ = open_url(DGHUB_REPO_URL);
+            return Ok(Some(false));
+        }
+        if self.site_btn.touch(touch, t) {
+            let _ = open_url(DGHUB_SITE_URL);
+            return Ok(Some(false));
+        }
+        if self.qq_btn.touch(touch, t) {
+            let _ = open_url(DGHUB_QQ_URL);
+            return Ok(Some(false));
+        }
         macro_rules! sw {
             ($b:ident, $f:ident) => {
                 if self.$b.touch(touch, t) {
@@ -1192,7 +1245,17 @@ impl DghubList {
         let rr = right_rect(w);
         let cfg = &get_data().config;
 
-        // 连接
+        item! { render_title(ui, tl!("item-dghub-author"), None);
+        render_link_button(ui, icon_rect(rr), t, &mut self.author_btn, &self.github_icon); }
+        item! { render_title(ui, tl!("item-dghub-project"), None);
+        render_link_button(ui, icon_rect(rr), t, &mut self.repo_btn, &self.github_icon); }
+        item! { render_title(ui, tl!("item-dghub-link"), None);
+        render_link_button(ui, icon_rect(rr), t, &mut self.site_btn, &self.browser_icon); }
+        item! { render_title(ui, tl!("item-dghub-qq"), None);
+        render_link_button(ui, icon_rect(rr), t, &mut self.qq_btn, &self.qq_icon); }
+        item! { render_title(ui, tl!("item-dghub-note"), Some(tl!("item-dghub-note-sub"))); }
+
+        // 外部连接
         item! { render_title(ui, tl!("item-dghub"), Some(tl!("item-dghub-sub")));
         render_switch(ui, rr, t, &mut self.enable_btn, cfg.dghub_enable); }
         item! { render_title(ui, tl!("item-dghub-host"), Some(tl!("item-dghub-host-sub")));
@@ -1206,83 +1269,6 @@ impl DghubList {
             let txt = match st { 1=>tl!("item-dghub-status-connecting"), 2=>tl!("item-dghub-status-connected"), _=>tl!("item-dghub-status-off") };
             render_title(ui, tl!("item-dghub-status"), Some(txt));
             self.reconnect_btn.render_text(ui, rr, t, tl!("item-dghub-reconnect"), 0.4, true);
-        }
-        // 配置来源
-        item! {
-            render_title(ui, tl!("item-dghub-source"),
-                Some(if cfg.dghub_use_phira_config { tl!("item-dghub-source-phira") } else { tl!("item-dghub-source-dghub") }));
-            render_switch(ui, rr, t, &mut self.use_phira_btn, cfg.dghub_use_phira_config);
-        }
-        // 映射 (仅 Phira 端)
-        if cfg.dghub_use_phira_config {
-            macro_rules! gr {
-                ($title:literal, $en:ident, $ef:ident, $st:ident, $sv:expr, $du:ident, $dv:expr, $pr:ident, $pv:expr) => {{
-                    item! { render_title(ui, $title, None); render_switch(ui, rr, t, &mut self.$en, cfg.$ef); }
-                    item! { render_title(ui, tl!("item-dghub-strength"), None); self.$st.render_text(ui, rr, t, $sv, 0.4, false); }
-                    item! { render_title(ui, tl!("item-dghub-duration"), None); self.$du.render_text(ui, rr, t, $dv, 0.4, false); }
-                    item! { render_title(ui, tl!("item-dghub-preset"), None); self.$pr.render_text(ui, rr, t, $pv, 0.4, false); }
-                }};
-            }
-            gr!(
-                "Miss",
-                miss_enable_btn,
-                dghub_miss_enable,
-                miss_strength_btn,
-                cfg.dghub_miss_strength.to_string(),
-                miss_duration_btn,
-                cfg.dghub_miss_duration.to_string(),
-                miss_preset_btn,
-                if cfg.dghub_miss_preset.is_empty() {
-                    "—"
-                } else {
-                    &cfg.dghub_miss_preset
-                }
-            );
-            gr!(
-                "Bad",
-                bad_enable_btn,
-                dghub_bad_enable,
-                bad_strength_btn,
-                cfg.dghub_bad_strength.to_string(),
-                bad_duration_btn,
-                cfg.dghub_bad_duration.to_string(),
-                bad_preset_btn,
-                if cfg.dghub_bad_preset.is_empty() { "—" } else { &cfg.dghub_bad_preset }
-            );
-            gr!(
-                "Good",
-                good_enable_btn,
-                dghub_good_enable,
-                good_strength_btn,
-                cfg.dghub_good_strength.to_string(),
-                good_duration_btn,
-                cfg.dghub_good_duration.to_string(),
-                good_preset_btn,
-                if cfg.dghub_good_preset.is_empty() {
-                    "—"
-                } else {
-                    &cfg.dghub_good_preset
-                }
-            );
-            gr!(
-                "Perfect",
-                perf_enable_btn,
-                dghub_perfect_enable,
-                perf_strength_btn,
-                cfg.dghub_perfect_strength.to_string(),
-                perf_duration_btn,
-                cfg.dghub_perfect_duration.to_string(),
-                perf_preset_btn,
-                if cfg.dghub_perfect_preset.is_empty() {
-                    "—"
-                } else {
-                    &cfg.dghub_perfect_preset
-                }
-            );
-            item! { render_title(ui, tl!("item-dghub-channel"), None);
-            self.channel_btn.render_text(ui, rr, t, &cfg.dghub_channel, 0.4, false); }
-            item! { render_title(ui, tl!("item-dghub-throttle"), None);
-            self.throttle_btn.render_text(ui, rr, t, cfg.dghub_throttle_ms.to_string(), 0.4, false); }
         }
         (w, h)
     }

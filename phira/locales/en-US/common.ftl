@@ -28,8 +28,11 @@ warn-deny-tos-policy = You must accept to use Phira's online services.
 
 open-in-web = View in Web
 
-main-character-name = Shee
-main-character-intro = To be added.
+main-character-name = YamadaRyo
+main-character-intro =
+  A cool and aloof second-year high school student. She is the bassist of Kessoku Band and Nijika's close friend.
+  She enjoys keeping herself apart from the world, and being called a weirdo makes her happy.
+  Although her family is well-off, she is often short on money when it comes to instruments. She occasionally eats grass to stave off hunger.
 
 favorites = Favorites
 default-fav-folder = Favorites

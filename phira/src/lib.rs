@@ -109,6 +109,40 @@ pub fn save_data() -> Result<()> {
     Ok(())
 }
 
+fn handle_dghub_events() {
+    for ev in dghub::drain_events() {
+        match ev {
+            dghub::DghubEvent::Scanning => {
+                show_message("DGHub 连接失败，正在扫描当前网段...").warn();
+            }
+            dghub::DghubEvent::Connected { host, port } => {
+                let changed = {
+                    let cfg = &mut get_data_mut().config;
+                    if cfg.dghub_host != host || cfg.dghub_port != port {
+                        cfg.dghub_host = host.clone();
+                        cfg.dghub_port = port;
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if changed {
+                    if let Err(err) = save_data() {
+                        show_error(err);
+                    }
+                }
+                show_message(format!("DGHub 已连接：{host}:{port}")).duration(1.5).ok();
+            }
+            dghub::DghubEvent::Disconnected(reason) => {
+                show_message(format!("DGHub 断开：{reason}。在设置中重新开关以重连")).warn();
+            }
+            dghub::DghubEvent::ScanFailed => {
+                show_message("DGHub 扫描失败：未找到 8000-8003 端口的设备").warn();
+            }
+        }
+    }
+}
+
 mod dir {
     use anyhow::{Context, Result};
 
@@ -213,6 +247,7 @@ async fn the_main() -> Result<()> {
     set_data(data);
     sync_data();
     save_data()?;
+    let _ = dghub::start_from_config();
 
     let rx = {
         let (tx, rx) = mpsc::channel();
@@ -274,6 +309,7 @@ async fn the_main() -> Result<()> {
                     main.resume()?;
                 }
             }
+            handle_dghub_events();
             Ok(())
         }();
         if let Err(err) = res {

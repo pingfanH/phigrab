@@ -8,8 +8,7 @@ use super::{
 use crate::{
     charts_view::NEED_UPDATE,
     client::{
-        basic_client_builder, recv_raw, Chart, ChartRef, ChartRefChartInfo, Client, Collection, CollectionUpdate, Permissions, Ptr, Record, User,
-        UserManager, CLIENT_TOKEN,
+        absolute_get, recv_raw, Chart, ChartRef, ChartRefChartInfo, Client, Collection, CollectionUpdate, Permissions, Ptr, Record, User, UserManager,
     },
     data::{BriefChartInfo, LocalChart},
     dir, get_data, get_data_mut,
@@ -641,13 +640,11 @@ impl SongScene {
                     async fn download(mut file: impl Write, url: &str, prog_wk: &Weak<Mutex<Option<f32>>>) -> Result<()> {
                         let Some(prog) = prog_wk.upgrade() else { return Ok(()) };
                         *prog.lock().unwrap() = None;
-                        let req = basic_client_builder().build().unwrap().get(url);
-                        let req = if let Some(token) = CLIENT_TOKEN.load().as_ref() {
-                            req.header("Authorization", format!("Bearer {token}"))
-                        } else {
-                            req
-                        };
-                        let res = req.send().await.with_context(|| tl!("request-failed"))?.error_for_status()?;
+                        let res = absolute_get(url)
+                            .send()
+                            .await
+                            .with_context(|| tl!("request-failed"))?
+                            .error_for_status()?;
                         let size = res.content_length();
                         let mut stream = res.bytes_stream();
                         let mut count = 0;
@@ -975,19 +972,7 @@ impl SongScene {
         let update_fn = {
             let cfg = &get_data().config;
             let dghub_fn = if cfg.dghub_enable {
-                let token = crate::dghub::normalize_token(&cfg.dghub_token);
-                let handle = crate::dghub::spawn(cfg.dghub_host.clone(), cfg.dghub_port, token);
-                Some(crate::dghub::build_update_fn(handle, |ev| {
-                    use crate::dghub::DghubEvent;
-                    match ev {
-                        DghubEvent::Connected => {
-                            show_message("DGHub 已连接").duration(1.5).ok();
-                        }
-                        DghubEvent::Disconnected(reason) => {
-                            show_message(format!("DGHub 断开：{reason}。在设置中重新开关以重连")).warn();
-                        }
-                    }
-                }))
+                crate::dghub::start_from_config().map(crate::dghub::build_update_fn)
             } else {
                 None
             };

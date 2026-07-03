@@ -5,16 +5,21 @@
 //! ## 连接状态反馈
 //!
 //! 后台任务把连接/断开事件写入全局队列 [`drain_events`]。
-//! 上层（song.rs）每帧轮询，发现事件后通过 `show_message` 弹窗告知用户。
+//! 主循环每帧轮询，发现事件后通过 `show_message` 弹窗告知用户。
 
 use anyhow::{anyhow, Result};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
 use prpr::scene::UpdateFn;
+use reqwest::Client;
 use serde_json::{json, Value};
-use std::sync::{atomic::AtomicU8, atomic::Ordering, Arc, Mutex};
+use std::{
+    net::{IpAddr, Ipv4Addr, UdpSocket},
+    sync::{atomic::AtomicU8, atomic::Ordering, Arc, Mutex},
+};
 use tokio::{
+    net::TcpStream,
     sync::mpsc,
-    time::{Duration, Instant},
+    time::{timeout, Duration, Instant},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, info, warn};
@@ -55,13 +60,16 @@ impl Grade {
 /// 后台任务推入全局队列的连接状态变化。
 #[derive(Clone, Debug)]
 pub enum DghubEvent {
-    Connected,
+    Scanning,
+    Connected { host: String, port: u16 },
     Disconnected(String),
+    ScanFailed,
 }
 
 /// 连接状态。
 const STATUS_CONNECTING: u8 = 1;
 const STATUS_CONNECTED: u8 = 2;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
 static DGHUB_EVENTS: std::sync::LazyLock<Mutex<Vec<DghubEvent>>> = std::sync::LazyLock::new(|| Mutex::new(Vec::new()));
 
@@ -89,15 +97,49 @@ pub fn connection_status() -> u8 {
     DGHUB_CONNECTION_STATUS.load(Ordering::Relaxed)
 }
 
-/// 尝试重连：复用共享 sender（若有），起新后台任务。
-pub fn request_reconnect() {
-    let session = DGHUB_SESSION
+fn handle_from_session() -> Option<DghubHandle> {
+    if connection_status() == 0 {
+        return None;
+    }
+    DGHUB_SESSION
         .lock()
         .unwrap()
         .as_ref()
-        .map(|session| (session.host.clone(), session.port, session.token.clone(), Arc::clone(&session.tx)));
+        .map(|session| DghubHandle { tx: Arc::clone(&session.tx) })
+}
 
-    if let Some((host, port, token, tx_shared)) = session {
+fn update_session_endpoint(host: &str, port: u16) {
+    if let Some(session) = DGHUB_SESSION.lock().unwrap().as_mut() {
+        session.host = host.to_owned();
+        session.port = port;
+    }
+}
+
+/// 尝试重连：复用共享 sender（若有），起新后台任务。
+pub fn request_reconnect() {
+    let (enabled, host, port, token) = {
+        let cfg = &crate::get_data().config;
+        (cfg.dghub_enable, cfg.dghub_host.clone(), cfg.dghub_port, normalize_token(&cfg.dghub_token))
+    };
+
+    if !enabled {
+        warn!("dghub: reconnect requested but DGHub is disabled");
+        return;
+    }
+
+    let tx_shared = {
+        let mut session = DGHUB_SESSION.lock().unwrap();
+        if let Some(session) = session.as_mut() {
+            session.host = host.clone();
+            session.port = port;
+            session.token = token.clone();
+            Some(Arc::clone(&session.tx))
+        } else {
+            None
+        }
+    };
+
+    if let Some(tx_shared) = tx_shared {
         info!("dghub: reconnect requested -> {host}:{port}");
 
         // 为新任务建一对新 channel；替换共享 sender
@@ -108,33 +150,30 @@ pub fn request_reconnect() {
         let status: Arc<AtomicU8> = Arc::new(AtomicU8::new(STATUS_CONNECTING));
         DGHUB_CONNECTION_STATUS.store(STATUS_CONNECTING, Ordering::Relaxed);
         tokio::spawn(async move {
-            match run(host, port, token, mapping, rx, &status).await {
-                Ok(()) => info!("dghub: reconnect session ended"),
-                Err(err) => warn!("dghub: reconnect error: {err:?}"),
-            }
-            if status.load(Ordering::Relaxed) == STATUS_CONNECTED {
-                DGHUB_EVENTS.lock().unwrap().push(DghubEvent::Disconnected("连接断开".into()));
-            }
-            status.store(0, Ordering::Relaxed);
-            DGHUB_CONNECTION_STATUS.store(0, Ordering::Relaxed);
+            let mut rx = rx;
+            run_with_optional_scan(host, port, token, mapping, &mut rx, &status, true).await;
         });
     } else {
-        let (enabled, host, port, token) = {
-            let cfg = &crate::get_data().config;
-            (cfg.dghub_enable, cfg.dghub_host.clone(), cfg.dghub_port, normalize_token(&cfg.dghub_token))
-        };
-        if enabled {
-            info!("dghub: reconnect requested without session; spawning from config -> {host}:{port}");
-            let _ = spawn(host, port, token);
-        } else {
-            warn!("dghub: reconnect requested but DGHub is disabled");
-        }
+        info!("dghub: reconnect requested without session; spawning from config -> {host}:{port}");
+        let _ = spawn_with_scan(host, port, token, true);
     }
 }
 
 pub fn normalize_token(token: &str) -> Option<String> {
     let token = token.trim();
     (!token.is_empty()).then(|| token.to_owned())
+}
+
+pub fn start_from_config() -> Option<DghubHandle> {
+    if let Some(handle) = handle_from_session() {
+        return Some(handle);
+    }
+
+    let cfg = &crate::get_data().config;
+    if !cfg.dghub_enable {
+        return None;
+    }
+    Some(spawn_with_scan(cfg.dghub_host.clone(), cfg.dghub_port, normalize_token(&cfg.dghub_token), true))
 }
 
 // ---------------------------------------------------------------------------
@@ -306,10 +345,9 @@ impl Mapping {
     }
 }
 
-/// 游戏线程持有的句柄：提供共享 sender + 状态供 build_update_fn 读取。
+/// 游戏线程持有的句柄：提供共享 sender 供 build_update_fn 发送判定。
 pub struct DghubHandle {
     tx: Arc<Mutex<Option<mpsc::UnboundedSender<Grade>>>>,
-    status: Arc<AtomicU8>,
 }
 
 impl DghubHandle {
@@ -321,18 +359,13 @@ impl DghubHandle {
             false
         }
     }
-
-    /// 是否已成功握手。
-    pub fn connected(&self) -> bool {
-        self.status.load(Ordering::Relaxed) == STATUS_CONNECTED
-    }
 }
 
 /// 启动后台 DGHub 会话任务，返回游戏线程用的句柄。
 ///
 /// 必须在 tokio runtime 上下文中调用（phira 启动时已 `rt.enter()`）。
 /// 把连接事件推入 [`drain_events`] 全局队列。
-pub fn spawn(host: String, port: u16, token: Option<String>) -> DghubHandle {
+fn spawn_with_scan(host: String, port: u16, token: Option<String>, scan_on_failure: bool) -> DghubHandle {
     let tx_shared: Arc<Mutex<Option<mpsc::UnboundedSender<Grade>>>> = Arc::new(Mutex::new(None));
     let status: Arc<AtomicU8> = Arc::new(AtomicU8::new(STATUS_CONNECTING));
     DGHUB_CONNECTION_STATUS.store(STATUS_CONNECTING, Ordering::Relaxed);
@@ -352,23 +385,203 @@ pub fn spawn(host: String, port: u16, token: Option<String>) -> DghubHandle {
     let mapping = Mapping::from_config(&crate::get_data().config);
     let s = Arc::clone(&status);
     tokio::spawn(async move {
-        match run(host, port, token, mapping, rx, &s).await {
-            Ok(()) => info!("dghub: session ended"),
-            Err(err) => warn!("dghub: session error: {err:?}"),
-        }
-        if s.load(Ordering::Relaxed) == STATUS_CONNECTED {
-            DGHUB_EVENTS.lock().unwrap().push(DghubEvent::Disconnected("连接断开".into()));
-        }
-        s.store(0, Ordering::Relaxed);
-        DGHUB_CONNECTION_STATUS.store(0, Ordering::Relaxed);
+        let mut rx = rx;
+        run_with_optional_scan(host, port, token, mapping, &mut rx, &s, scan_on_failure).await;
     });
-    DghubHandle { tx: tx_shared, status }
+    DghubHandle { tx: tx_shared }
+}
+
+async fn run_with_optional_scan(
+    host: String,
+    port: u16,
+    token: Option<String>,
+    mapping: Mapping,
+    rx: &mut mpsc::UnboundedReceiver<Grade>,
+    status: &AtomicU8,
+    scan_on_failure: bool,
+) {
+    let mut ever_connected = false;
+    match run_retry_latest_token(host.clone(), port, token.clone(), mapping.clone(), rx, status).await {
+        Ok(()) => info!("dghub: session ended"),
+        Err(err) => {
+            let was_connected = status.load(Ordering::Relaxed) == STATUS_CONNECTED;
+            ever_connected |= was_connected;
+            warn!("dghub: session error: {err:?}");
+            if scan_on_failure && !was_connected {
+                DGHUB_EVENTS.lock().unwrap().push(DghubEvent::Scanning);
+                if let Some((scan_host, scan_port)) = scan_lan().await {
+                    info!("dghub: scan found -> {scan_host}:{scan_port}");
+                    update_session_endpoint(&scan_host, scan_port);
+                    let mapping = Mapping::from_config(&crate::get_data().config);
+                    match run_retry_latest_token(scan_host, scan_port, token.clone(), mapping, rx, status).await {
+                        Ok(()) => info!("dghub: scanned session ended"),
+                        Err(err) => warn!("dghub: scanned session error: {err:?}"),
+                    }
+                    let scan_connected = status.load(Ordering::Relaxed) == STATUS_CONNECTED;
+                    ever_connected |= scan_connected;
+                    if !scan_connected {
+                        DGHUB_EVENTS.lock().unwrap().push(DghubEvent::ScanFailed);
+                    }
+                } else {
+                    warn!("dghub: scan failed");
+                    DGHUB_EVENTS.lock().unwrap().push(DghubEvent::ScanFailed);
+                }
+            }
+        }
+    }
+    if ever_connected || status.load(Ordering::Relaxed) == STATUS_CONNECTED {
+        DGHUB_EVENTS.lock().unwrap().push(DghubEvent::Disconnected("连接断开".into()));
+    }
+    status.store(0, Ordering::Relaxed);
+    DGHUB_CONNECTION_STATUS.store(0, Ordering::Relaxed);
+}
+
+async fn run_retry_latest_token(
+    host: String,
+    port: u16,
+    token: Option<String>,
+    mapping: Mapping,
+    rx: &mut mpsc::UnboundedReceiver<Grade>,
+    status: &AtomicU8,
+) -> Result<()> {
+    let has_manual_token = token.is_some();
+    match run(host.clone(), port, token, mapping.clone(), rx, status).await {
+        Err(err) if has_manual_token && status.load(Ordering::Relaxed) != STATUS_CONNECTED => {
+            warn!("dghub: manual token failed before handshake: {err:?}; retrying with latest token");
+            run(host, port, None, mapping, rx, status).await
+        }
+        result => result,
+    }
+}
+
+fn local_ipv4() -> Option<Ipv4Addr> {
+    let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
+    socket.connect((Ipv4Addr::new(8, 8, 8, 8), 80)).ok()?;
+    match socket.local_addr().ok()?.ip() {
+        IpAddr::V4(ip) if !ip.is_loopback() => Some(ip),
+        _ => None,
+    }
+}
+
+async fn probe_endpoint(client: Client, host: String, port: u16) -> Option<(String, u16)> {
+    let url = format!("http://{host}:{port}/api/plugins/_session_token");
+    client.get(url).send().await.ok()?.error_for_status().ok()?;
+    Some((host, port))
+}
+
+async fn probe_device_port(host: String, port: u16) -> bool {
+    timeout(Duration::from_millis(120), TcpStream::connect((host.as_str(), port)))
+        .await
+        .is_ok_and(|res| res.is_ok())
+}
+
+async fn probe_device(host: String) -> Option<String> {
+    const DEVICE_PROBE_PORTS: [u16; 2] = [80, 443];
+
+    let mut probes = FuturesUnordered::new();
+    for port in DEVICE_PROBE_PORTS {
+        probes.push(probe_device_port(host.clone(), port));
+    }
+    while let Some(found) = probes.next().await {
+        if found {
+            return Some(host);
+        }
+    }
+    None
+}
+
+fn current_segment_hosts() -> Vec<String> {
+    let Some(local) = local_ipv4() else {
+        return Vec::new();
+    };
+    let octets = local.octets();
+
+    (1u8..=254)
+        .filter(|it| *it != octets[3])
+        .map(|it| format!("{}.{}.{}.{}", octets[0], octets[1], octets[2], it))
+        .collect()
+}
+
+async fn scan_lan_devices(hosts: &[String]) -> Vec<String> {
+    const CONCURRENCY: usize = 32;
+
+    let mut hosts = hosts.iter().cloned();
+    let mut devices = Vec::new();
+    loop {
+        let mut probes = FuturesUnordered::new();
+        for host in hosts.by_ref().take(CONCURRENCY) {
+            probes.push(probe_device(host));
+        }
+        if probes.is_empty() {
+            break;
+        }
+        while let Some(found) = probes.next().await {
+            if let Some(host) = found {
+                devices.push(host);
+            }
+        }
+    }
+    devices
+}
+
+fn log_ip_list(label: &str, ips: &[String]) {
+    if ips.is_empty() {
+        info!("dghub: {label}: none");
+        return;
+    }
+    for chunk in ips.chunks(32) {
+        info!("dghub: {label}: {}", chunk.join(", "));
+    }
+}
+
+async fn scan_lan() -> Option<(String, u16)> {
+    const START_PORT: u16 = 8000;
+    const END_PORT: u16 = 8003;
+    const CONCURRENCY: usize = 64;
+
+    let candidates = current_segment_hosts();
+    if candidates.is_empty() {
+        warn!("dghub: lan scan failed to resolve current segment");
+        return None;
+    }
+    let devices = scan_lan_devices(&candidates).await;
+    let device_count = devices.len();
+    log_ip_list("detected responsive ips", &devices);
+    let mut scan_hosts = devices;
+    for host in candidates {
+        if !scan_hosts.contains(&host) {
+            scan_hosts.push(host);
+        }
+    }
+    log_ip_list("endpoint scan ips", &scan_hosts);
+    info!("dghub: lan scan found {device_count} responsive device(s), scanning {} host(s)", scan_hosts.len());
+
+    let client = Client::builder().timeout(Duration::from_millis(350)).build().ok()?;
+    for port in START_PORT..=END_PORT {
+        let mut hosts = scan_hosts.iter().cloned();
+        loop {
+            let mut probes = FuturesUnordered::new();
+            for host in hosts.by_ref().take(CONCURRENCY) {
+                probes.push(probe_endpoint(client.clone(), host, port));
+            }
+            if probes.is_empty() {
+                break;
+            }
+            while let Some(found) = probes.next().await {
+                if found.is_some() {
+                    return found;
+                }
+            }
+        }
+    }
+    None
 }
 
 async fn fetch_token(host: &str, port: u16) -> Result<String> {
     let url = format!("http://{host}:{port}/api/plugins/_session_token");
     debug!("dghub: fetch token from {url}");
-    let text = reqwest::get(&url).await?.error_for_status()?.text().await?;
+    let client = Client::builder().timeout(CONNECT_TIMEOUT).build()?;
+    let text = client.get(&url).send().await?.error_for_status()?.text().await?;
     if let Ok(v) = serde_json::from_str::<Value>(&text) {
         if let Some(t) = v.get("token").and_then(Value::as_str) {
             info!("dghub: token fetched");
@@ -397,6 +610,7 @@ fn hello_message(token: &str) -> Value {
             "description": "把 Phira 的 Perfect/Good/Bad/Miss 判定映射为电击触发。",
             "config_schema": [
                 { "section": "通用", "fields": [
+                    { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phira-dglab", "description": "仅展示，可复制" },
                     { "key": "channel", "type": "channel", "label": "输出通道", "default": "both" },
                     { "key": "throttle_ms", "type": "number", "label": "节流(ms)", "default": 80, "min": 0, "max": 1000, "description": "同一判定档在该间隔内多次命中只触发一次" }
                 ]},
@@ -428,7 +642,7 @@ async fn run(
     port: u16,
     token_override: Option<String>,
     mapping: Mapping,
-    mut rx: mpsc::UnboundedReceiver<Grade>,
+    rx: &mut mpsc::UnboundedReceiver<Grade>,
     status: &AtomicU8,
 ) -> Result<()> {
     let token = match token_override.filter(|s| !s.is_empty()) {
@@ -440,7 +654,7 @@ async fn run(
     };
     let url = format!("ws://{host}:{port}/ws/plugin?token={token}");
     debug!("dghub: connecting to {url}");
-    let (mut ws, _) = connect_async(url.as_str()).await?;
+    let (mut ws, _) = timeout(CONNECT_TIMEOUT, connect_async(url.as_str())).await??;
     info!("dghub: ws connected");
 
     let hello = hello_message(&token);
@@ -449,7 +663,9 @@ async fn run(
 
     // 等握手结果。
     loop {
-        let msg = ws.next().await.ok_or_else(|| anyhow!("connection closed before hello_ack"))??;
+        let msg = timeout(CONNECT_TIMEOUT, ws.next())
+            .await?
+            .ok_or_else(|| anyhow!("connection closed before hello_ack"))??;
         if let Message::Text(text) = &msg {
             let v: Value = serde_json::from_str(text)?;
             if v.get("op").and_then(Value::as_str) == Some("hello_ack") {
@@ -466,7 +682,7 @@ async fn run(
     info!("dghub: handshake accepted, ready");
     status.store(STATUS_CONNECTED, Ordering::Relaxed);
     DGHUB_CONNECTION_STATUS.store(STATUS_CONNECTED, Ordering::Relaxed);
-    DGHUB_EVENTS.lock().unwrap().push(DghubEvent::Connected);
+    DGHUB_EVENTS.lock().unwrap().push(DghubEvent::Connected { host: host.clone(), port });
 
     let use_phira_config = crate::get_data().config.dghub_use_phira_config;
     if use_phira_config {
@@ -561,13 +777,9 @@ async fn run(
 
 /// 构造游戏线程每帧调用的 `UpdateFn`：对 `judge.counts()` 做 diff，把新增的
 /// 各档判定逐个推入 channel。不 drain `judgements`，与多人 live 共存。
-/// 同时也会消费 [`drain_events`] 并调用回调。
-pub fn build_update_fn(handle: DghubHandle, on_event: impl Fn(DghubEvent) + 'static) -> UpdateFn {
+pub fn build_update_fn(handle: DghubHandle) -> UpdateFn {
     let mut last = [0u32; 4];
     Box::new(move |_t, _res, judge| {
-        for ev in drain_events() {
-            on_event(ev);
-        }
         let counts = judge.counts();
         for i in 0..4 {
             let mut n = counts[i].saturating_sub(last[i]);

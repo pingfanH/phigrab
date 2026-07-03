@@ -10,14 +10,20 @@ use arc_swap::ArcSwap;
 use once_cell::sync::Lazy;
 use prpr::scene::SimpleRecord;
 use prpr_l10n::LANG_IDENTS;
-use reqwest::{header, ClientBuilder, Method, RequestBuilder, Response, StatusCode};
+use reqwest::{header, ClientBuilder, IntoUrl, Method, RequestBuilder, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{borrow::Cow, collections::HashMap, marker::PhantomData, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, marker::PhantomData, sync::Arc, time::Duration};
 
 pub static CLIENT_TOKEN: Lazy<ArcSwap<Option<String>>> = Lazy::new(|| ArcSwap::from_pointee(None));
 
 static CLIENT: Lazy<ArcSwap<reqwest::Client>> = Lazy::new(|| ArcSwap::from_pointee(basic_client_builder().build().unwrap()));
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+const POOL_MAX_IDLE_PER_HOST: usize = 6;
 
 pub struct Client;
 
@@ -32,7 +38,14 @@ pub fn basic_client_builder() -> ClientBuilder {
             attempt.follow()
         }
     });
-    let mut builder = reqwest::ClientBuilder::new().redirect(policy);
+    let mut builder = reqwest::ClientBuilder::new()
+        .redirect(policy)
+        .http1_only()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .tcp_keepalive(TCP_KEEPALIVE)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+        .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST);
     if get_data().accept_invalid_cert {
         builder = builder.danger_accept_invalid_certs(true);
     }
@@ -78,6 +91,11 @@ pub async fn recv_raw(request: RequestBuilder) -> Result<Response> {
         bail!("request failed ({status}): {text}");
     }
     Ok(response)
+}
+
+#[inline]
+pub fn absolute_get(url: impl IntoUrl) -> RequestBuilder {
+    CLIENT.load().get(url)
 }
 
 #[derive(Serialize)]

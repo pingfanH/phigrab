@@ -32,6 +32,9 @@ pub struct Icons {
     pub cloud_check: SafeTexture,
     pub plus: SafeTexture,
     pub select: SafeTexture,
+    pub github: SafeTexture,
+    pub browser: SafeTexture,
+    pub qq: SafeTexture,
 
     pub r#abstract: SafeTexture,
 }
@@ -67,6 +70,9 @@ impl Icons {
             cloud_check: load_texture("cloud_check.png").await?.into(),
             plus: load_texture("plus.png").await?.into(),
             select: load_texture("select.png").await?.into(),
+            github: load_texture("gituhb.png").await?.into(),
+            browser: load_texture("browser.png").await?.into(),
+            qq: load_texture("qq.png").await?.into(),
 
             r#abstract: load_texture("abstract.jpg").await?.into(),
         })

@@ -34,8 +34,16 @@ item-anys-gateway = Anys Gateway
 item-anys-gateway-sub = Use a custom Anys gateway address.
 item-anys-gateway-invalid = Invalid gateway address.
 
-item-dghub = DGHub Link
-item-dghub-sub = Drive DGHub triggers from Perfect/Good/Bad/Miss judgements (configure mapping in DGHub).
+item-dghub = External Connection
+item-dghub-sub = Connect to the external DGHub / dglab service.
+item-dghub-author = Created by pingfanh
+item-dghub-project = Project phira-dglab
+item-dghub-link = DGHub Link
+item-dghub-qq = QQ Group 229380808
+item-dghub-note = Notes
+item-dghub-note-sub = Check details in dglab.
+item-dghub-open-github = GitHub
+item-dghub-open-browser = Browser
 item-dghub-host = DGHub Host
 item-dghub-host-sub = DGHub API host, usually 127.0.0.1.
 item-dghub-port = DGHub Port
@@ -56,7 +64,7 @@ item-dghub-duration = Duration (s)
 item-dghub-preset = Waveform Preset
 item-dghub-channel = Output Channel
 item-dghub-throttle = Throttle (ms)
-dghub = DGHub
+dghub = External
 
 item-adjust = Automatic Time Adjustment
 item-adjust-sub = Adjust the audio and chart offset dynamically.
