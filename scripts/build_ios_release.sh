@@ -97,7 +97,10 @@ ensure_static_libs() {
   mkdir -p "$(dirname "$archive")"
   local versioned_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/download/$FFMPEG_VERSION/$rust_target.tar.gz"
   local latest_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/latest/download/$rust_target.tar.gz"
-  if ! curl -fL --retry 3 -o "$archive" "$versioned_url"; then
+  if [[ "$rust_target" == "aarch64-apple-ios" ]]; then
+    # The 20260309_v0 iOS archive contains macOS-marked arm64 objects.
+    curl -fL --retry 3 -o "$archive" "$latest_url"
+  elif ! curl -fL --retry 3 -o "$archive" "$versioned_url"; then
     echo "[Phigrab] static libs not found in $FFMPEG_VERSION for $rust_target; trying latest..."
     curl -fL --retry 3 -o "$archive" "$latest_url"
   fi

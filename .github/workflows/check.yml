@@ -55,9 +55,13 @@ jobs:
       - name: Download FFmpeg static libs
         run: |
           mkdir -p prpr-avc/static-lib/${{ matrix.target }}
-          versioned_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/download/${PRPR_AVC_FFMPEG_VERSION}/${{ matrix.target }}.tar.gz"
-          latest_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/latest/download/${{ matrix.target }}.tar.gz"
-          if ! curl -fL --retry 3 -o prpr-avc-static-lib.tar.gz "$versioned_url"; then
+          target="${{ matrix.target }}"
+          versioned_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/download/${PRPR_AVC_FFMPEG_VERSION}/${target}.tar.gz"
+          latest_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/latest/download/${target}.tar.gz"
+          if [[ "$target" == "aarch64-apple-ios" ]]; then
+            # The 20260309_v0 iOS archive contains macOS-marked arm64 objects.
+            curl -fL --retry 3 -o prpr-avc-static-lib.tar.gz "$latest_url"
+          elif ! curl -fL --retry 3 -o prpr-avc-static-lib.tar.gz "$versioned_url"; then
             echo "[Phigrab] static libs not found in ${PRPR_AVC_FFMPEG_VERSION} for ${{ matrix.target }}; trying latest..."
             curl -fL --retry 3 -o prpr-avc-static-lib.tar.gz "$latest_url"
           fi
