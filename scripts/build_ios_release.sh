@@ -155,6 +155,7 @@ package_target() {
   local payload_dir="$DIST_DIR/payload-$artifact_arch/Payload"
   local ipa="$DIST_DIR/$APP_NAME-$version-$artifact_arch.ipa"
   local binary="$CARGO_TARGET_DIR/$rust_target/release/$BIN_NAME"
+  local app_icon="$ROOT_DIR/xcode/Assets.xcassets/AppIcon.appiconset/icon1.png"
 
   log "Packaging $artifact_arch"
   rm -rf "$app_dir"
@@ -162,7 +163,11 @@ package_target() {
   cp "$binary" "$app_dir/$APP_NAME"
   chmod +x "$app_dir/$APP_NAME"
   cp -R "$ROOT_DIR/assets" "$app_dir/assets"
-  cp "$ROOT_DIR/assets/icon.png" "$app_dir/AppIcon.png"
+  if [[ -f "$app_icon" ]]; then
+    cp "$app_icon" "$app_dir/AppIcon.png"
+  else
+    cp "$ROOT_DIR/assets/icon.png" "$app_dir/AppIcon.png"
+  fi
   cat > "$app_dir/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

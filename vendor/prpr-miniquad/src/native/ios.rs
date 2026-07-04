@@ -384,6 +384,16 @@ pub fn load_file<F: Fn(crate::fs::Response) + 'static>(path: &str, on_loaded: F)
         let _: () = frameworks::NSLog(nsstring);
 
         let main_bundle: ObjcId = msg_send![class!(NSBundle), mainBundle];
+        let bundle_path: ObjcId = msg_send![main_bundle, bundlePath];
+        let bundle_path = apple_util::nsstring_to_string(bundle_path);
+        if !path.is_absolute() {
+            let file_path = std::path::Path::new(&bundle_path).join(path);
+            if let Ok(bytes) = std::fs::read(&file_path) {
+                on_loaded(Ok(bytes));
+                return;
+            }
+        }
+
         let resource = apple_util::str_to_nsstring(path_without_extension);
         let type_ = apple_util::str_to_nsstring(extension);
         let file_path: ObjcId = msg_send![main_bundle, pathForResource:resource ofType:type_];
