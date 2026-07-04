@@ -1,8 +1,8 @@
 [package]
 name = "phira-main"
-version = { workspace = true }
-edition = { workspace = true }
-license = { workspace = true }
+version = "0.7.1"
+edition = "2021"
+license = "GPL-3.0-only"
 
 [package.metadata.android]
 package_name = "com.pingfanh.phigrab"
@@ -16,4 +16,4 @@ default = ["video"]
 video = ["phira/video"]
 
 [dependencies]
-phira = { workspace = true, default-features = false }
+phira = { path = "../phira", default-features = false }
