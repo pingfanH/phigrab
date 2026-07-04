@@ -125,6 +125,10 @@ for triple in aarch64-linux-android arm-linux-androideabi i686-linux-android x86
 done
 
 export NDK_HOME
+export ANDROID_NDK_HOME="$NDK_HOME"
+export ANDROID_NDK_ROOT="$NDK_HOME"
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ROOT/.cargo/android-linker-aarch64.sh"
+export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$ROOT/.cargo/android-linker-armv7.sh"
 
 # NDK r26 + legacy ld invocation may miss libunwind search paths. The per-target
 # linker wrapper adds the correct clang runtime directory for each ABI.

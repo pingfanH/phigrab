@@ -94,6 +94,44 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ANDROID_NDK_VERSION: 26.1.10909125
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Rust toolchain
+        run: rustup toolchain install
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "platforms;android-35" "platform-tools" "build-tools;35.0.0" "ndk;$ANDROID_NDK_VERSION"
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: "true"
+          cache-all-crates: "true"
+
+      - name: Build Android APK
+        run: |
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          export NDK_HOME="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+          scripts/run_android_release.sh
+
   tests:
     name: Tests
     runs-on: ubuntu-latest

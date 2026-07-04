@@ -43,7 +43,7 @@ use std::{
     collections::VecDeque,
     sync::{mpsc, Mutex},
 };
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[cfg(target_os = "android")]
 use jni::{
@@ -209,7 +209,7 @@ async fn the_main() -> Result<()> {
     unsafe {
         let env = miniquad::native::attach_jni_env();
         if let Err(err) = inputbox::backend::Android::initialize_raw(env as *mut jni::sys::JNIEnv) {
-            warn!(?err, "failed to initialize Android input backend");
+            tracing::warn!(?err, "failed to initialize Android input backend");
         }
     }
     #[cfg(target_env = "ohos")]
