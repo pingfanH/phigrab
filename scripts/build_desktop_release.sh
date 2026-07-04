@@ -287,26 +287,38 @@ zip_dir() {
   rm -f "$archive"
   if command -v zip >/dev/null 2>&1; then
     (cd "$(dirname "$dir")" && zip -qry "$archive" "$(basename "$dir")")
+  elif command -v 7z >/dev/null 2>&1; then
+    (cd "$(dirname "$dir")" && 7z a -tzip "$archive" "$(basename "$dir")" >/dev/null)
+  elif command -v 7z.exe >/dev/null 2>&1; then
+    (cd "$(dirname "$dir")" && 7z.exe a -tzip "$archive" "$(basename "$dir")" >/dev/null)
   elif command -v powershell.exe >/dev/null 2>&1; then
     local ps_archive="$archive"
     local ps_dir="$dir"
+    local ps_script="$DIST_DIR/cache/compress-archive.ps1"
+    mkdir -p "$(dirname "$ps_script")"
+    cat > "$ps_script" <<'PS1'
+param(
+  [Parameter(Mandatory = $true)]
+  [string]$Dir,
+  [Parameter(Mandatory = $true)]
+  [string]$Archive
+)
+$ErrorActionPreference = "Stop"
+$parent = Split-Path -LiteralPath $Dir -Parent
+$name = Split-Path -LiteralPath $Dir -Leaf
+Push-Location -LiteralPath $parent
+try {
+  Compress-Archive -LiteralPath $name -DestinationPath $Archive -Force
+} finally {
+  Pop-Location
+}
+PS1
     if command -v cygpath >/dev/null 2>&1; then
       ps_archive="$(cygpath -w "$archive")"
       ps_dir="$(cygpath -w "$dir")"
+      ps_script="$(cygpath -w "$ps_script")"
     fi
-    powershell.exe -NoProfile -Command '
-      $ErrorActionPreference = "Stop"
-      $dir = $args[0]
-      $archive = $args[1]
-      $parent = Split-Path -LiteralPath $dir -Parent
-      $name = Split-Path -LiteralPath $dir -Leaf
-      Push-Location -LiteralPath $parent
-      try {
-        Compress-Archive -LiteralPath $name -DestinationPath $archive -Force
-      } finally {
-        Pop-Location
-      }
-    ' "$ps_dir" "$ps_archive"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps_script" -Dir "$ps_dir" -Archive "$ps_archive"
   else
     printf '%s\n' "zip command not found; install zip or run on a GitHub runner with archive tools." >&2
     exit 1
