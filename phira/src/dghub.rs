@@ -511,15 +511,19 @@ async fn probe_device(host: String) -> Option<String> {
 }
 
 fn current_segment_hosts() -> Vec<String> {
+    let mut hosts = vec!["127.0.0.1".to_owned()];
     let Some(local) = local_ipv4() else {
-        return Vec::new();
+        return hosts;
     };
     let octets = local.octets();
 
-    (1u8..=254)
-        .filter(|it| *it != octets[3])
-        .map(|it| format!("{}.{}.{}.{}", octets[0], octets[1], octets[2], it))
-        .collect()
+    for it in 1u8..=254 {
+        let host = format!("{}.{}.{}.{}", octets[0], octets[1], octets[2], it);
+        if !hosts.contains(&host) {
+            hosts.push(host);
+        }
+    }
+    hosts
 }
 
 async fn scan_lan_devices(hosts: &[String]) -> Vec<String> {

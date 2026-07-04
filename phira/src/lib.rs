@@ -113,7 +113,7 @@ fn handle_dghub_events() {
     for ev in dghub::drain_events() {
         match ev {
             dghub::DghubEvent::Scanning => {
-                show_message("DGHub 连接失败，正在扫描当前网段...").warn();
+                show_message("连接失败，正在扫描....").warn();
             }
             dghub::DghubEvent::Connected { host, port } => {
                 let changed = {
@@ -131,13 +131,13 @@ fn handle_dghub_events() {
                         show_error(err);
                     }
                 }
-                show_message(format!("DGHub 已连接：{host}:{port}")).duration(1.5).ok();
+                show_message(format!("已连接：{host}:{port}")).duration(1.5).ok();
             }
             dghub::DghubEvent::Disconnected(reason) => {
-                show_message(format!("DGHub 断开：{reason}。在设置中重新开关以重连")).warn();
+                show_message(format!("已断开：{reason}。")).warn();
             }
             dghub::DghubEvent::ScanFailed => {
-                show_message("DGHub 扫描失败：未找到 8000-8003 端口的设备").warn();
+                show_message("扫描失败。").warn();
             }
         }
     }
