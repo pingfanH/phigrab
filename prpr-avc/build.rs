@@ -18,6 +18,8 @@ fn main() {
         println!("cargo:rustc-link-lib=static=vorbis");
         println!("cargo:rustc-link-lib=static=ogg");
     }
-    println!("cargo:rustc-link-lib=z");
+    if !target.ends_with("windows-msvc") {
+        println!("cargo:rustc-link-lib=z");
+    }
     println!("cargo:rerun-if-changed={libs_path}");
 }

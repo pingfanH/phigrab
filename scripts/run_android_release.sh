@@ -28,6 +28,7 @@ case "$(uname -s)" in
 esac
 TOOLCHAIN_BIN="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin"
 BUILD_TOOLS_ROOT="$ANDROID_SDK_ROOT/build-tools"
+PATCHED_MANIFESTS=()
 
 find_sdkmanager() {
   local c1="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
@@ -87,6 +88,44 @@ clean_prpr_avc_cache() {
   local target_dir="$CARGO_TARGET_DIR/$rust_target/release"
   rm -rf "$target_dir"/build/prpr-avc-*
   rm -f "$target_dir"/deps/libprpr_avc-* "$target_dir"/deps/prpr_avc-*
+}
+
+restore_quad_apk_manifests() {
+  local manifest backup
+  for manifest in "${PATCHED_MANIFESTS[@]}"; do
+    backup="$manifest.phigrab-quad-apk.bak"
+    if [[ -f "$backup" ]]; then
+      mv "$backup" "$manifest"
+    fi
+  done
+}
+
+prepare_quad_apk_manifests() {
+  local manifest backup tmp
+  while IFS= read -r manifest; do
+    if ! grep -Eq 'workspace = true|\[workspace\.package\]' "$manifest"; then
+      continue
+    fi
+    if grep -q '^cargo-features = .*workspace-inheritance' "$manifest"; then
+      continue
+    fi
+    backup="$manifest.phigrab-quad-apk.bak"
+    tmp="$manifest.phigrab-quad-apk.tmp"
+    cp "$manifest" "$backup"
+    {
+      printf '%s\n\n' 'cargo-features = ["workspace-inheritance"]'
+      cat "$backup"
+    } > "$tmp"
+    mv "$tmp" "$manifest"
+    PATCHED_MANIFESTS+=("$manifest")
+  done < <(
+    find "$ROOT" \
+      -path "$ROOT/.git" -prune -o \
+      -path "$ROOT/target" -prune -o \
+      -path "$ROOT/dist" -prune -o \
+      -name Cargo.toml -type f -print
+  )
+  trap restore_quad_apk_manifests EXIT
 }
 
 echo "[Phigrab] ensure Android targets..."
@@ -187,6 +226,7 @@ ensure_dx_compat
 
 mkdir -p "$DIST_DIR"
 echo "[Phigrab] building APK via cargo quad-apk..."
+prepare_quad_apk_manifests
 CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo quad-apk build --manifest-path "$MANIFEST" --release -p phira-main --out-dir "$DIST_DIR"
 
 echo "[Phigrab] Android artifacts:"
