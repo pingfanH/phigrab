@@ -543,8 +543,7 @@ impl Page for HomePage {
                         warn!("fail to check update {:?}", err);
                     }
                     Ok(Some(ver)) => {
-                        let current_version =
-                            semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("package version should be valid semver");
+                        let current_version = semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("package version should be valid semver");
                         if ver.version > current_version && get_data().ignored_version.as_ref().is_none_or(|it| it < &ver.version) {
                             Dialog::plain(
                                 tl!("update", "version" => ver.version.to_string()),
