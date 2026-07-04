@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec /usr/bin/env bash "$0" "$@"
+fi
 set -euo pipefail
 
 APP_NAME="${APP_NAME:-Phigrab}"
@@ -114,6 +117,20 @@ clean_prpr_avc_cache() {
   rm -f "$target_dir"/deps/libprpr_avc-* "$target_dir"/deps/prpr_avc-*
 }
 
+sign_app_bundle() {
+  local app_dir="$1"
+  local identity="${IOS_CODESIGN_IDENTITY:--}"
+
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -cr "$app_dir"
+  fi
+
+  log "Signing $(basename "$app_dir")"
+  codesign --force --sign "$identity" --timestamp=none "$app_dir"
+  codesign --verify --verbose=2 "$app_dir/$APP_NAME"
+  codesign --verify --verbose=2 "$app_dir"
+}
+
 build_target() {
   local rust_target="$1"
   if [[ "$SKIP_BUILD" -eq 1 ]]; then
@@ -145,6 +162,7 @@ package_target() {
   cp "$binary" "$app_dir/$APP_NAME"
   chmod +x "$app_dir/$APP_NAME"
   cp -R "$ROOT_DIR/assets" "$app_dir/assets"
+  cp "$ROOT_DIR/assets/icon.png" "$app_dir/AppIcon.png"
   cat > "$app_dir/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -158,6 +176,10 @@ package_target() {
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleIconFiles</key>
+  <array>
+    <string>AppIcon.png</string>
+  </array>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -175,9 +197,7 @@ PLIST
   if [[ -n "${IOS_MOBILE_PROVISION_BASE64:-}" ]]; then
     printf '%s' "$IOS_MOBILE_PROVISION_BASE64" | base64 --decode > "$app_dir/embedded.mobileprovision"
   fi
-  if [[ -n "${IOS_CODESIGN_IDENTITY:-}" ]]; then
-    codesign --force --sign "$IOS_CODESIGN_IDENTITY" "$app_dir"
-  fi
+  sign_app_bundle "$app_dir"
 
   rm -rf "$(dirname "$payload_dir")"
   mkdir -p "$payload_dir"
@@ -194,13 +214,13 @@ main() {
   version="$(version)"
 
   log "Preparing $APP_NAME iOS release $version"
-  while IFS= read -r release_target; do
+  for release_target in $(targets_for_selection); do
     local rust_target artifact_arch
     rust_target="$(rust_target_for "$release_target")"
     artifact_arch="$(artifact_arch_for "$release_target")"
     build_target "$rust_target"
     package_target "$rust_target" "$artifact_arch" "$version"
-  done < <(targets_for_selection)
+  done
 
   log "Done. Artifacts are in $DIST_DIR"
 }
