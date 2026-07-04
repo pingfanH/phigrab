@@ -71,7 +71,6 @@ jobs:
           path: |
             dist/desktop/*.zip
             dist/desktop/*.dmg
-            dist/desktop/*.app/**
             dist/desktop/*.AppImage
           if-no-files-found: error
 

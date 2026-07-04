@@ -69,9 +69,12 @@ download_static_libs() {
   mkdir -p "$dst"
   local archive="$DIST_DIR/cache/$target-prpr-avc-static-lib.tar.gz"
   mkdir -p "$(dirname "$archive")"
-  curl -fL --retry 3 \
-    -o "$archive" \
-    "https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/download/$FFMPEG_VERSION/$target.tar.gz"
+  local versioned_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/download/$FFMPEG_VERSION/$target.tar.gz"
+  local latest_url="https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/latest/download/$target.tar.gz"
+  if ! curl -fL --retry 3 -o "$archive" "$versioned_url"; then
+    echo "[Phigrab] static libs not found in $FFMPEG_VERSION for $target; trying latest..."
+    curl -fL --retry 3 -o "$archive" "$latest_url"
+  fi
   tar -xzf "$archive" -C "$dst"
 }
 
