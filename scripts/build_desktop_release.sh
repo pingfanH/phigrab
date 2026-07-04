@@ -279,6 +279,24 @@ copy_common_files() {
   if [[ -f "$ROOT_DIR/README-zh_CN.md" ]]; then
     cp "$ROOT_DIR/README-zh_CN.md" "$out_dir/README-zh_CN.md"
   fi
+  validate_runtime_assets "$out_dir"
+}
+
+validate_runtime_assets() {
+  local runtime_dir="$1"
+  local required=(
+    "assets/font.ttf"
+    "assets/bold.ttf"
+    "assets/phigros.ttf"
+    "assets/icon.png"
+  )
+  local rel
+  for rel in "${required[@]}"; do
+    if [[ ! -f "$runtime_dir/$rel" ]]; then
+      printf 'Missing runtime asset in package: %s\n' "$runtime_dir/$rel" >&2
+      exit 1
+    fi
+  done
 }
 
 zip_dir() {
@@ -352,6 +370,7 @@ package_macos() {
   cp "$(binary_path "$rust_target" "")" "$app_dir/Contents/MacOS/$APP_NAME"
   chmod +x "$app_dir/Contents/MacOS/$APP_NAME"
   cp -R "$ROOT_DIR/assets" "$app_dir/Contents/MacOS/assets"
+  validate_runtime_assets "$app_dir/Contents/MacOS"
   cp "$ROOT_DIR/assets/icon.png" "$app_dir/Contents/Resources/AppIcon.png"
   cp "$ROOT_DIR/LICENSE" "$app_dir/Contents/Resources/LICENSE.txt"
   cat > "$app_dir/Contents/Info.plist" <<PLIST
