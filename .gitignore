@@ -1,7 +1,6 @@
 inner.rs
 
 /target
-/assets/font.ttf
 /cache
 /data
 /.cargo
