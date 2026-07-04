@@ -326,7 +326,6 @@ pub fn define_app_delegate() -> *const Class {
             let _: () = msg_send![glk_view_obj, setUserInteractionEnabled: YES];
             let _: () = msg_send![glk_view_obj, setMultipleTouchEnabled: YES];
             let _: () = msg_send![glk_view_obj, setContentScaleFactor: screen_scale];
-            let _: () = msg_send![window_obj, addSubview: glk_view_obj];
 
             // let view_ctrl_obj: ObjcId = msg_send![class!(GLKViewController), alloc];
             let view_ctrl_obj: ObjcId = msg_send![define_glk_view_controller(), alloc];

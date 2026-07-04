@@ -13,7 +13,7 @@ use prpr::{
     judge::{Judgement, JudgementRecord},
     scene::UpdateFn,
 };
-use reqwest::Client;
+use reqwest::{Client, ClientBuilder};
 use serde_json::{json, Value};
 use std::{
     collections::HashSet,
@@ -634,6 +634,10 @@ async fn probe_endpoint(client: Client, host: String, port: u16) -> Option<(Stri
     Some((host, port))
 }
 
+fn local_http_client_builder(timeout: Duration) -> ClientBuilder {
+    Client::builder().timeout(timeout).no_proxy()
+}
+
 async fn probe_device_port(host: String, port: u16) -> bool {
     timeout(Duration::from_millis(120), TcpStream::connect((host.as_str(), port)))
         .await
@@ -731,7 +735,7 @@ async fn scan_lan() -> Option<(String, u16)> {
     log_ip_list("endpoint scan ips", &scan_hosts);
     info!("dghub: lan scan found {device_count} responsive device(s), scanning {} host(s)", scan_hosts.len());
 
-    let client = Client::builder().timeout(Duration::from_millis(350)).build().ok()?;
+    let client = local_http_client_builder(Duration::from_millis(350)).build().ok()?;
     for port in START_PORT..=END_PORT {
         let mut hosts = scan_hosts.iter().cloned();
         loop {
@@ -755,7 +759,7 @@ async fn scan_lan() -> Option<(String, u16)> {
 async fn fetch_token(host: &str, port: u16) -> Result<String> {
     let url = format!("http://{host}:{port}/api/plugins/_session_token");
     debug!("dghub: fetch token from {url}");
-    let client = Client::builder().timeout(CONNECT_TIMEOUT).build()?;
+    let client = local_http_client_builder(CONNECT_TIMEOUT).build()?;
     let text = client.get(&url).send().await?.error_for_status()?.text().await?;
     if let Ok(v) = serde_json::from_str::<Value>(&text) {
         if let Some(t) = v.get("token").and_then(Value::as_str) {

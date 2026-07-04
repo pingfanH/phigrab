@@ -46,6 +46,12 @@ pub fn basic_client_builder() -> ClientBuilder {
         .tcp_keepalive(TCP_KEEPALIVE)
         .pool_idle_timeout(POOL_IDLE_TIMEOUT)
         .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST);
+    #[cfg(target_os = "ios")]
+    {
+        // iOS/PlayCover can expose the host proxy (for example 127.0.0.1:7890)
+        // to reqwest, but that address is not reachable from the app sandbox.
+        builder = builder.no_proxy();
+    }
     if get_data().accept_invalid_cert {
         builder = builder.danger_accept_invalid_certs(true);
     }
