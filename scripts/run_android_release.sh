@@ -42,7 +42,10 @@ find_sdkmanager() {
   return 1
 }
 
-if ! cargo --list | grep -q "quad-apk"; then
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "[Phigrab] installing fresh cargo-quad-apk on GitHub Actions..."
+  cargo install cargo-quad-apk --force
+elif ! cargo --list | grep -q "quad-apk"; then
   echo "[Phigrab] cargo-quad-apk not found. Installing..."
   cargo install cargo-quad-apk
 fi
