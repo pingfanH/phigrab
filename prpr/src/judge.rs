@@ -394,8 +394,7 @@ impl Judge {
         });
     }
 
-    fn touch_transform(flip_x: bool) -> impl Fn(&mut Touch) {
-        let vp = get_viewport();
+    fn touch_transform_for_viewport(vp: (i32, i32, i32, i32), flip_x: bool) -> impl Fn(&mut Touch) {
         move |touch| {
             let p = touch.position;
             touch.position = vec2(
@@ -406,6 +405,10 @@ impl Judge {
                 touch.position.x *= -1.;
             }
         }
+    }
+
+    fn touch_transform(flip_x: bool) -> impl Fn(&mut Touch) {
+        Self::touch_transform_for_viewport(get_viewport(), flip_x)
     }
 
     pub(crate) fn get_touches_with_flip(flip_x: bool) -> Vec<Touch> {
@@ -440,7 +443,7 @@ impl Judge {
 
         let t = res.time;
         // TODO optimize
-        let tr = Self::touch_transform(res.config.flip_x());
+        let tr = Self::touch_transform_for_viewport(res.camera.viewport.unwrap_or_else(get_viewport), res.config.flip_x());
         let mut touches: HashMap<u64, Touch> = {
             let mut touches = touches();
             let btn = MouseButton::Left;

@@ -513,8 +513,8 @@ impl GameScene {
     }
 
     fn pulse_dghub_indicator_channel(&mut self, channel: usize, level: f32, until: f64) {
-        self.dghub_indicator_level[channel] = self.dghub_indicator_level[channel].max(level);
-        self.dghub_indicator_until[channel] = self.dghub_indicator_until[channel].max(until);
+        self.dghub_indicator_level[channel] = level;
+        self.dghub_indicator_until[channel] = until;
     }
 
     fn dghub_grade_index_from_record(record: JudgementRecord) -> usize {
