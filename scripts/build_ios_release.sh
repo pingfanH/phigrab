@@ -104,6 +104,13 @@ ensure_static_libs() {
   tar -xzf "$archive" -C "$dst"
 }
 
+clean_prpr_avc_cache() {
+  local rust_target="$1"
+  local target_dir="$CARGO_TARGET_DIR/$rust_target/release"
+  rm -rf "$target_dir"/build/prpr-avc-*
+  rm -f "$target_dir"/deps/libprpr_avc-* "$target_dir"/deps/prpr_avc-*
+}
+
 build_target() {
   local rust_target="$1"
   if [[ "$SKIP_BUILD" -eq 1 ]]; then
@@ -114,6 +121,7 @@ build_target() {
   log "Building $rust_target"
   rustup target add "$rust_target"
   ensure_static_libs "$rust_target"
+  clean_prpr_avc_cache "$rust_target"
   IPHONEOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}" \
     CARGO_TARGET_DIR="$CARGO_TARGET_DIR" \
     cargo build --release -p "$BIN_NAME" --target "$rust_target"

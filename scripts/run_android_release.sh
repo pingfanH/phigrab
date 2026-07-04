@@ -6,6 +6,7 @@ MANIFEST="${MANIFEST:-$ROOT/phira-main/Cargo.toml}"
 ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
 ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
 DIST_DIR="${DIST_DIR:-$ROOT/dist/android}"
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 FFMPEG_VERSION="${PRPR_AVC_FFMPEG_VERSION:-20260309_v0}"
 ANDROID_NDK_VERSION="${ANDROID_NDK_VERSION:-26.1.10909125}"
 TARGET_SDK="$(awk '
@@ -81,10 +82,19 @@ download_static_libs() {
   tar -xzf "$archive" -C "$dst"
 }
 
+clean_prpr_avc_cache() {
+  local rust_target="$1"
+  local target_dir="$CARGO_TARGET_DIR/$rust_target/release"
+  rm -rf "$target_dir"/build/prpr-avc-*
+  rm -f "$target_dir"/deps/libprpr_avc-* "$target_dir"/deps/prpr_avc-*
+}
+
 echo "[Phigrab] ensure Android targets..."
 rustup target add aarch64-linux-android armv7-linux-androideabi
 download_static_libs aarch64-linux-android
 download_static_libs armv7-linux-androideabi
+clean_prpr_avc_cache aarch64-linux-android
+clean_prpr_avc_cache armv7-linux-androideabi
 echo "[Phigrab] target sdk from Cargo.toml: android-$TARGET_SDK"
 
 if [[ -x "$TOOLCHAIN_BIN/llvm-ar" ]]; then
@@ -177,7 +187,7 @@ ensure_dx_compat
 
 mkdir -p "$DIST_DIR"
 echo "[Phigrab] building APK via cargo quad-apk..."
-cargo quad-apk build --manifest-path "$MANIFEST" --release -p phira-main --out-dir "$DIST_DIR"
+CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo quad-apk build --manifest-path "$MANIFEST" --release -p phira-main --out-dir "$DIST_DIR"
 
 echo "[Phigrab] Android artifacts:"
 find "$DIST_DIR" -maxdepth 2 -type f | sort

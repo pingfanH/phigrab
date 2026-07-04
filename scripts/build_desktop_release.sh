@@ -108,6 +108,13 @@ ensure_static_libs() {
   tar -xzf "$archive" -C "$dst"
 }
 
+clean_prpr_avc_cache() {
+  local rust_target="$1"
+  local target_dir="$CARGO_TARGET_DIR/$rust_target/$(profile_dir)"
+  rm -rf "$target_dir"/build/prpr-avc-*
+  rm -f "$target_dir"/deps/libprpr_avc-* "$target_dir"/deps/prpr_avc-*
+}
+
 ensure_host_can_build() {
   local release_target="$1"
   local os
@@ -237,6 +244,7 @@ build_target() {
   log "Building $rust_target"
   rustup target add "$rust_target"
   ensure_static_libs "$rust_target"
+  clean_prpr_avc_cache "$rust_target"
   if [[ "$rust_target" == "x86_64-unknown-linux-gnu" ]]; then
     configure_linux_cross_toolchain
   fi
