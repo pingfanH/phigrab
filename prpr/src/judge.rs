@@ -151,6 +151,13 @@ pub enum Judgement {
     Miss,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct JudgementRecord {
+    pub time: f64,
+    pub judgement: Judgement,
+    pub diff: f64,
+}
+
 #[cfg(not(closed))]
 #[derive(Default)]
 pub(crate) struct JudgeInner {
@@ -279,6 +286,7 @@ pub struct Judge {
 
     pub(crate) inner: JudgeInner,
     pub judgements: RefCell<Judgements>,
+    pub judgement_records: RefCell<Vec<JudgementRecord>>,
 }
 
 #[derive(Default)]
@@ -318,6 +326,7 @@ impl Judge {
 
             inner: JudgeInner::new(chart.lines.iter().map(|it| it.notes.iter().filter(|it| !it.fake).count() as u32).sum()),
             judgements: RefCell::new(Vec::new()),
+            judgement_records: RefCell::new(Vec::new()),
         }
     }
 
@@ -326,6 +335,7 @@ impl Judge {
         self.trackers.clear();
         self.inner.reset();
         self.judgements.borrow_mut().clear();
+        self.judgement_records.borrow_mut().clear();
     }
 
     /// Advance note pointers past notes before time `t`, marking them as judged.
@@ -346,6 +356,11 @@ impl Judge {
 
     pub fn commit(&mut self, t: f64, what: Judgement, line_id: u32, note_id: u32, diff: f64) {
         self.judgements.borrow_mut().push((t, line_id, note_id, Ok(what)));
+        self.judgement_records.borrow_mut().push(JudgementRecord {
+            time: t,
+            judgement: what,
+            diff,
+        });
         self.inner.commit(what, diff);
     }
 

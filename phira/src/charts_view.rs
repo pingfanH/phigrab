@@ -198,6 +198,7 @@ impl ChartsView {
             return Ok(true);
         }
         if self.scroll.touch(touch, t) {
+            self.cancel_item_touches(t);
             return Ok(true);
         }
         if !self.scroll.contains(touch) {
@@ -337,6 +338,15 @@ impl ChartsView {
             }
         }
         Ok(false)
+    }
+
+    fn cancel_item_touches(&mut self, t: f32) {
+        if let Some(charts) = &mut self.charts {
+            for item in charts {
+                item.btn.cancel(t);
+                item.long_touch.reset();
+            }
+        }
     }
 
     fn has_header(&self) -> bool {

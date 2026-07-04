@@ -64,6 +64,7 @@ item-dghub-duration = 时长 (秒)
 item-dghub-preset = 波形预设
 item-dghub-channel = 输出通道
 item-dghub-throttle = 节流 (ms)
+item-dghub-indicator-style = 指示器样式
 dghub = 外部连接
 
 item-adjust = 自动对齐时间

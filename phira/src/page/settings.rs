@@ -393,6 +393,71 @@ fn render_switch(ui: &mut Ui, r: Rect, t: f32, btn: &mut DRectButton, on: bool) 
     btn.render_text(ui, r, t, if on { ttl!("switch-on") } else { ttl!("switch-off") }, 0.5, on);
 }
 
+fn next_dghub_channel(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "a" => "b",
+        "b" => "both",
+        _ => "a",
+    }
+    .to_owned()
+}
+
+fn dghub_channel_label(value: &str) -> &'static str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "a" => "A",
+        "b" => "B",
+        _ => "双通道",
+    }
+}
+
+fn next_dghub_indicator_style(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "bar" => "ring",
+        _ => "bar",
+    }
+    .to_owned()
+}
+
+fn dghub_indicator_style_label(value: &str) -> &'static str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "bar" => "横条",
+        _ => "圆环",
+    }
+}
+
+const DGHUB_PRESETS: &[&str] = &[
+    "CS2-受伤",
+    "CS2-闪光",
+    "CS2-烟雾",
+    "CS2-燃烧",
+    "CS2-死亡",
+    "呼吸",
+    "潮汐",
+    "连击",
+    "快速按捏",
+    "心跳节奏",
+    "颗粒摩擦",
+    "波浪涟漪",
+];
+
+fn dghub_preset_options() -> Vec<String> {
+    DGHUB_PRESETS.iter().map(|it| (*it).to_owned()).collect()
+}
+
+fn dghub_preset_index(value: &str) -> usize {
+    DGHUB_PRESETS.iter().position(|it| *it == value).unwrap_or(0)
+}
+
+fn dghub_preset_value(index: usize) -> String {
+    DGHUB_PRESETS.get(index).unwrap_or(&DGHUB_PRESETS[0]).to_string()
+}
+
+fn dghub_preset_button(value: &str) -> ChooseButton {
+    ChooseButton::new()
+        .with_options(dghub_preset_options())
+        .with_selected(dghub_preset_index(value))
+}
+
 #[inline]
 fn right_rect(w: f32) -> Rect {
     let rh = ITEM_HEIGHT * 2. / 3.;
@@ -406,8 +471,8 @@ fn icon_rect(r: Rect) -> Rect {
 
 fn render_link_button(ui: &mut Ui, r: Rect, t: f32, btn: &mut DRectButton, icon: &SafeTexture) {
     btn.render_shadow(ui, r, t, |ui, path| {
-        ui.fill_path(&path, semi_white(0.9));
-        ui.fill_rect(r.feather(-0.018), (**icon, r.feather(-0.018), ScaleType::Fit, Color::new(0.18, 0.18, 0.2, 1.)));
+        ui.fill_path(&path, Color::new(0., 0., 0., 0.28));
+        ui.fill_rect(r.feather(-0.018), (**icon, r.feather(-0.018), ScaleType::Fit, Color::new(1., 1., 1., 0.9)));
     });
 }
 
@@ -1044,29 +1109,34 @@ struct DghubList {
     token_btn: DRectButton,
     reconnect_btn: DRectButton,
     use_phira_btn: DRectButton,
+    indicator_style_btn: DRectButton,
     miss_enable_btn: DRectButton,
     miss_strength_btn: DRectButton,
     miss_duration_btn: DRectButton,
-    miss_preset_btn: DRectButton,
+    miss_preset_btn: ChooseButton,
+    miss_channel_btn: DRectButton,
     bad_enable_btn: DRectButton,
     bad_strength_btn: DRectButton,
     bad_duration_btn: DRectButton,
-    bad_preset_btn: DRectButton,
+    bad_preset_btn: ChooseButton,
+    bad_channel_btn: DRectButton,
     good_enable_btn: DRectButton,
     good_strength_btn: DRectButton,
     good_duration_btn: DRectButton,
-    good_preset_btn: DRectButton,
+    good_preset_btn: ChooseButton,
+    good_channel_btn: DRectButton,
     perf_enable_btn: DRectButton,
     perf_strength_btn: DRectButton,
     perf_duration_btn: DRectButton,
-    perf_preset_btn: DRectButton,
-    channel_btn: DRectButton,
+    perf_preset_btn: ChooseButton,
+    perf_channel_btn: DRectButton,
     throttle_btn: DRectButton,
 }
 
 impl DghubList {
     pub fn new(github_icon: SafeTexture, browser_icon: SafeTexture, qq_icon: SafeTexture) -> Self {
         let b = || DRectButton::new();
+        let cfg = &get_data().config;
         Self {
             github_icon,
             browser_icon,
@@ -1081,28 +1151,44 @@ impl DghubList {
             token_btn: b(),
             reconnect_btn: b(),
             use_phira_btn: b(),
+            indicator_style_btn: b(),
             miss_enable_btn: b(),
             miss_strength_btn: b(),
             miss_duration_btn: b(),
-            miss_preset_btn: b(),
+            miss_preset_btn: dghub_preset_button(&cfg.dghub_miss_preset),
+            miss_channel_btn: b(),
             bad_enable_btn: b(),
             bad_strength_btn: b(),
             bad_duration_btn: b(),
-            bad_preset_btn: b(),
+            bad_preset_btn: dghub_preset_button(&cfg.dghub_bad_preset),
+            bad_channel_btn: b(),
             good_enable_btn: b(),
             good_strength_btn: b(),
             good_duration_btn: b(),
-            good_preset_btn: b(),
+            good_preset_btn: dghub_preset_button(&cfg.dghub_good_preset),
+            good_channel_btn: b(),
             perf_enable_btn: b(),
             perf_strength_btn: b(),
             perf_duration_btn: b(),
-            perf_preset_btn: b(),
-            channel_btn: b(),
+            perf_preset_btn: dghub_preset_button(&cfg.dghub_perfect_preset),
+            perf_channel_btn: b(),
             throttle_btn: b(),
         }
     }
 
-    pub fn top_touch(&mut self, _t: &Touch, _f: f32) -> bool {
+    pub fn top_touch(&mut self, touch: &Touch, t: f32) -> bool {
+        if self.miss_preset_btn.top_touch(touch, t) {
+            return true;
+        }
+        if self.bad_preset_btn.top_touch(touch, t) {
+            return true;
+        }
+        if self.good_preset_btn.top_touch(touch, t) {
+            return true;
+        }
+        if self.perf_preset_btn.top_touch(touch, t) {
+            return true;
+        }
         false
     }
 
@@ -1141,6 +1227,14 @@ impl DghubList {
                 }
             };
         }
+        macro_rules! ch {
+            ($b:ident, $f:ident) => {
+                if self.$b.touch(touch, t) {
+                    cfg.$f = next_dghub_channel(&cfg.$f);
+                    return Ok(Some(true));
+                }
+            };
+        }
         sw!(enable_btn, dghub_enable);
         ti!(host_btn, "dghub_host", &cfg.dghub_host);
         ti!(port_btn, "dghub_port", &cfg.dghub_port.to_string());
@@ -1150,30 +1244,63 @@ impl DghubList {
             return Ok(Some(false));
         }
         sw!(use_phira_btn, dghub_use_phira_config);
+        if self.indicator_style_btn.touch(touch, t) {
+            cfg.dghub_indicator_style = next_dghub_indicator_style(&cfg.dghub_indicator_style);
+            return Ok(Some(true));
+        }
         if cfg.dghub_use_phira_config {
             sw!(miss_enable_btn, dghub_miss_enable);
             ti!(miss_strength_btn, "dms", &cfg.dghub_miss_strength.to_string());
             ti!(miss_duration_btn, "dmd", &cfg.dghub_miss_duration.to_string());
-            ti!(miss_preset_btn, "dmp", &cfg.dghub_miss_preset);
+            if self.miss_preset_btn.touch(touch, t) {
+                return Ok(Some(false));
+            }
+            ch!(miss_channel_btn, dghub_miss_channel);
             sw!(bad_enable_btn, dghub_bad_enable);
             ti!(bad_strength_btn, "dbs", &cfg.dghub_bad_strength.to_string());
             ti!(bad_duration_btn, "dbd", &cfg.dghub_bad_duration.to_string());
-            ti!(bad_preset_btn, "dbp", &cfg.dghub_bad_preset);
+            if self.bad_preset_btn.touch(touch, t) {
+                return Ok(Some(false));
+            }
+            ch!(bad_channel_btn, dghub_bad_channel);
             sw!(good_enable_btn, dghub_good_enable);
             ti!(good_strength_btn, "dgs", &cfg.dghub_good_strength.to_string());
             ti!(good_duration_btn, "dgd", &cfg.dghub_good_duration.to_string());
-            ti!(good_preset_btn, "dgp", &cfg.dghub_good_preset);
+            if self.good_preset_btn.touch(touch, t) {
+                return Ok(Some(false));
+            }
+            ch!(good_channel_btn, dghub_good_channel);
             sw!(perf_enable_btn, dghub_perfect_enable);
             ti!(perf_strength_btn, "dps", &cfg.dghub_perfect_strength.to_string());
             ti!(perf_duration_btn, "dpd", &cfg.dghub_perfect_duration.to_string());
-            ti!(perf_preset_btn, "dpp", &cfg.dghub_perfect_preset);
-            ti!(channel_btn, "dch", &cfg.dghub_channel);
+            if self.perf_preset_btn.touch(touch, t) {
+                return Ok(Some(false));
+            }
+            ch!(perf_channel_btn, dghub_perfect_channel);
             ti!(throttle_btn, "dth", &cfg.dghub_throttle_ms.to_string());
         }
         Ok(None)
     }
 
     pub fn update(&mut self, _t: f32) -> Result<bool> {
+        self.miss_preset_btn.update(_t);
+        self.bad_preset_btn.update(_t);
+        self.good_preset_btn.update(_t);
+        self.perf_preset_btn.update(_t);
+        if get_data().config.dghub_use_phira_config {
+            macro_rules! preset_changed {
+                ($btn:ident, $field:ident) => {
+                    if self.$btn.changed() {
+                        get_data_mut().config.$field = dghub_preset_value(self.$btn.selected());
+                        return Ok(true);
+                    }
+                };
+            }
+            preset_changed!(miss_preset_btn, dghub_miss_preset);
+            preset_changed!(bad_preset_btn, dghub_bad_preset);
+            preset_changed!(good_preset_btn, dghub_good_preset);
+            preset_changed!(perf_preset_btn, dghub_perfect_preset);
+        }
         if let Some((id, text)) = take_input() {
             let cfg = &mut get_data_mut().config;
             match id.as_str() {
@@ -1221,17 +1348,12 @@ impl DghubList {
                 }
                 p!("dms", dghub_miss_strength, u32);
                 p!("dmd", dghub_miss_duration, f64);
-                p!("dmp", dghub_miss_preset, str);
                 p!("dbs", dghub_bad_strength, u32);
                 p!("dbd", dghub_bad_duration, f64);
-                p!("dbp", dghub_bad_preset, str);
                 p!("dgs", dghub_good_strength, u32);
                 p!("dgd", dghub_good_duration, f64);
-                p!("dgp", dghub_good_preset, str);
                 p!("dps", dghub_perfect_strength, u32);
                 p!("dpd", dghub_perfect_duration, f64);
-                p!("dpp", dghub_perfect_preset, str);
-                p!("dch", dghub_channel, str);
                 p!("dth", dghub_throttle_ms, u32);
             }
         }
@@ -1269,6 +1391,84 @@ impl DghubList {
             let txt = match st { 1=>tl!("item-dghub-status-connecting"), 2=>tl!("item-dghub-status-connected"), _=>tl!("item-dghub-status-off") };
             render_title(ui, tl!("item-dghub-status"), Some(txt));
             self.reconnect_btn.render_text(ui, rr, t, tl!("item-dghub-reconnect"), 0.4, true);
+        }
+        item! { render_title(ui, tl!("item-dghub-source"), None);
+        self.use_phira_btn.render_text(ui, rr, t, if cfg.dghub_use_phira_config { tl!("item-dghub-source-phira") } else { tl!("item-dghub-source-dghub") }, 0.35, cfg.dghub_use_phira_config); }
+        item! { render_title(ui, tl!("item-dghub-indicator-style"), None);
+        self.indicator_style_btn.render_text(ui, rr, t, dghub_indicator_style_label(&cfg.dghub_indicator_style), 0.4, false); }
+        if cfg.dghub_use_phira_config {
+            macro_rules! grade {
+                ($name:literal, $enable_btn:ident, $enable:ident, $strength_btn:ident, $strength:ident, $duration_btn:ident, $duration:ident, $preset_btn:ident, $preset:ident, $channel_btn:ident, $channel:ident) => {{
+                    item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub")), None);
+                    render_switch(ui, rr, t, &mut self.$enable_btn, cfg.$enable); }
+                    item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-strength")), None);
+                    self.$strength_btn.render_text(ui, rr, t, cfg.$strength.to_string(), 0.4, false); }
+                    item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-duration")), None);
+                    self.$duration_btn.render_text(ui, rr, t, format!("{:.2}", cfg.$duration), 0.4, false); }
+                    item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-preset")), None);
+                    self.$preset_btn.render(ui, rr, t); }
+                    item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-channel")), None);
+                    self.$channel_btn.render_text(ui, rr, t, dghub_channel_label(&cfg.$channel), 0.4, false); }
+                }};
+            }
+            grade!(
+                "Miss",
+                miss_enable_btn,
+                dghub_miss_enable,
+                miss_strength_btn,
+                dghub_miss_strength,
+                miss_duration_btn,
+                dghub_miss_duration,
+                miss_preset_btn,
+                dghub_miss_preset,
+                miss_channel_btn,
+                dghub_miss_channel
+            );
+            grade!(
+                "Bad",
+                bad_enable_btn,
+                dghub_bad_enable,
+                bad_strength_btn,
+                dghub_bad_strength,
+                bad_duration_btn,
+                dghub_bad_duration,
+                bad_preset_btn,
+                dghub_bad_preset,
+                bad_channel_btn,
+                dghub_bad_channel
+            );
+            grade!(
+                "Good",
+                good_enable_btn,
+                dghub_good_enable,
+                good_strength_btn,
+                dghub_good_strength,
+                good_duration_btn,
+                dghub_good_duration,
+                good_preset_btn,
+                dghub_good_preset,
+                good_channel_btn,
+                dghub_good_channel
+            );
+            grade!(
+                "Perfect",
+                perf_enable_btn,
+                dghub_perfect_enable,
+                perf_strength_btn,
+                dghub_perfect_strength,
+                perf_duration_btn,
+                dghub_perfect_duration,
+                perf_preset_btn,
+                dghub_perfect_preset,
+                perf_channel_btn,
+                dghub_perfect_channel
+            );
+            item! { render_title(ui, tl!("item-dghub-throttle"), None);
+            self.throttle_btn.render_text(ui, rr, t, cfg.dghub_throttle_ms.to_string(), 0.4, false); }
+            self.miss_preset_btn.render_top(ui, t, 1.);
+            self.bad_preset_btn.render_top(ui, t, 1.);
+            self.good_preset_btn.render_top(ui, t, 1.);
+            self.perf_preset_btn.render_top(ui, t, 1.);
         }
         (w, h)
     }

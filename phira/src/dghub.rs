@@ -9,12 +9,15 @@
 
 use anyhow::{anyhow, Result};
 use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
-use prpr::scene::UpdateFn;
+use prpr::{
+    judge::{Judgement, JudgementRecord},
+    scene::UpdateFn,
+};
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::{
     net::{IpAddr, Ipv4Addr, UdpSocket},
-    sync::{atomic::AtomicU8, atomic::Ordering, Arc, Mutex},
+    sync::{atomic::AtomicU32, atomic::AtomicU8, atomic::Ordering, Arc, Mutex},
 };
 use tokio::{
     net::TcpStream,
@@ -24,7 +27,7 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, info, warn};
 
-/// 四档判定，对应 `prpr::judge::Judgement`（`counts` 数组下标顺序）。
+/// 四档判定，对应 `prpr::judge::Judgement`。
 #[derive(Clone, Copy, Debug)]
 pub enum Grade {
     Perfect,
@@ -34,21 +37,21 @@ pub enum Grade {
 }
 
 impl Grade {
-    fn from_index(i: usize) -> Self {
-        match i {
-            0 => Grade::Perfect,
-            1 => Grade::Good,
-            2 => Grade::Bad,
-            _ => Grade::Miss,
-        }
-    }
-
     fn label(self) -> &'static str {
         match self {
             Grade::Perfect => "Perfect",
             Grade::Good => "Good",
             Grade::Bad => "Bad",
             Grade::Miss => "Miss",
+        }
+    }
+
+    fn from_record(record: JudgementRecord) -> Self {
+        match record.judgement {
+            Judgement::Perfect => Grade::Perfect,
+            Judgement::Good => Grade::Good,
+            Judgement::Bad => Grade::Bad,
+            Judgement::Miss => Grade::Miss,
         }
     }
 }
@@ -75,6 +78,8 @@ static DGHUB_EVENTS: std::sync::LazyLock<Mutex<Vec<DghubEvent>>> = std::sync::La
 
 /// 全局连接状态（供 settings 等页面读取）。
 static DGHUB_CONNECTION_STATUS: std::sync::LazyLock<Arc<AtomicU8>> = std::sync::LazyLock::new(|| Arc::new(AtomicU8::new(0)));
+static DGHUB_MAX_STRENGTH_A: AtomicU32 = AtomicU32::new(100);
+static DGHUB_MAX_STRENGTH_B: AtomicU32 = AtomicU32::new(100);
 
 /// 全局共享的 grade 发送端 + 重连参数。
 /// `spawn` 写入，`build_update_fn` 和 `request_reconnect` 读取/替换。
@@ -95,6 +100,13 @@ pub fn drain_events() -> Vec<DghubEvent> {
 /// 连接状态：0=未连接，1=连接中，2=已连接。
 pub fn connection_status() -> u8 {
     DGHUB_CONNECTION_STATUS.load(Ordering::Relaxed)
+}
+
+pub fn max_strength() -> [u32; 2] {
+    [
+        DGHUB_MAX_STRENGTH_A.load(Ordering::Relaxed).max(1),
+        DGHUB_MAX_STRENGTH_B.load(Ordering::Relaxed).max(1),
+    ]
 }
 
 fn handle_from_session() -> Option<DghubHandle> {
@@ -187,13 +199,26 @@ struct GradeCfg {
     delta: i32,
     duration: f64,
     preset: String,
+    channel: String,
+}
+
+fn normalized_channel(value: &str, fallback: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "a" => "a".to_owned(),
+        "b" => "b".to_owned(),
+        "both" | "ab" | "double" | "dual" => "both".to_owned(),
+        _ => match fallback.trim().to_ascii_lowercase().as_str() {
+            "a" => "a".to_owned(),
+            "b" => "b".to_owned(),
+            _ => "both".to_owned(),
+        },
+    }
 }
 
 /// 判定 → trigger 的完整映射。从 `prpr::config::Config` 构建，
 /// 用户直接在 phira 设置页修改全部参数。
 #[derive(Clone)]
 struct Mapping {
-    channel: String,
     throttle_ms: u32,
     perfect: GradeCfg,
     good: GradeCfg,
@@ -204,31 +229,34 @@ struct Mapping {
 impl Mapping {
     fn from_config(cfg: &prpr::config::Config) -> Self {
         Mapping {
-            channel: cfg.dghub_channel.clone(),
             throttle_ms: cfg.dghub_throttle_ms,
             miss: GradeCfg {
                 enable: cfg.dghub_miss_enable,
                 delta: cfg.dghub_miss_strength as i32,
                 duration: cfg.dghub_miss_duration,
                 preset: cfg.dghub_miss_preset.clone(),
+                channel: normalized_channel(&cfg.dghub_miss_channel, &cfg.dghub_channel),
             },
             bad: GradeCfg {
                 enable: cfg.dghub_bad_enable,
                 delta: cfg.dghub_bad_strength as i32,
                 duration: cfg.dghub_bad_duration,
                 preset: cfg.dghub_bad_preset.clone(),
+                channel: normalized_channel(&cfg.dghub_bad_channel, &cfg.dghub_channel),
             },
             good: GradeCfg {
                 enable: cfg.dghub_good_enable,
                 delta: cfg.dghub_good_strength as i32,
                 duration: cfg.dghub_good_duration,
                 preset: cfg.dghub_good_preset.clone(),
+                channel: normalized_channel(&cfg.dghub_good_channel, &cfg.dghub_channel),
             },
             perfect: GradeCfg {
                 enable: cfg.dghub_perfect_enable,
                 delta: cfg.dghub_perfect_strength as i32,
                 duration: cfg.dghub_perfect_duration,
                 preset: cfg.dghub_perfect_preset.clone(),
+                channel: normalized_channel(&cfg.dghub_perfect_channel, &cfg.dghub_channel),
             },
         }
     }
@@ -248,7 +276,11 @@ impl Mapping {
             "channel" => {
                 if let Some(s) = v.as_str() {
                     if !s.is_empty() {
-                        self.channel = s.to_owned();
+                        let s = normalized_channel(s, "both");
+                        self.miss.channel = s.clone();
+                        self.bad.channel = s.clone();
+                        self.good.channel = s.clone();
+                        self.perfect.channel = s;
                     }
                 }
             }
@@ -277,6 +309,11 @@ impl Mapping {
                     self.miss.preset = s.to_owned();
                 }
             }
+            "miss_channel" => {
+                if let Some(s) = v.as_str() {
+                    self.miss.channel = normalized_channel(s, &self.miss.channel);
+                }
+            }
             "bad_enable" => {
                 if let Some(b) = v.as_bool() {
                     self.bad.enable = b;
@@ -295,6 +332,11 @@ impl Mapping {
             "bad_preset" => {
                 if let Some(s) = v.as_str() {
                     self.bad.preset = s.to_owned();
+                }
+            }
+            "bad_channel" => {
+                if let Some(s) = v.as_str() {
+                    self.bad.channel = normalized_channel(s, &self.bad.channel);
                 }
             }
             "good_enable" => {
@@ -317,6 +359,11 @@ impl Mapping {
                     self.good.preset = s.to_owned();
                 }
             }
+            "good_channel" => {
+                if let Some(s) = v.as_str() {
+                    self.good.channel = normalized_channel(s, &self.good.channel);
+                }
+            }
             "perfect_enable" => {
                 if let Some(b) = v.as_bool() {
                     self.perfect.enable = b;
@@ -337,6 +384,11 @@ impl Mapping {
                     self.perfect.preset = s.to_owned();
                 }
             }
+            "perfect_channel" => {
+                if let Some(s) = v.as_str() {
+                    self.perfect.channel = normalized_channel(s, &self.perfect.channel);
+                }
+            }
             _ => {
                 debug!("dghub: unknown config key: {key}");
             }
@@ -355,7 +407,7 @@ impl Mapping {
             "delta_pct": cfg.delta,
             "strength_mode": "rollback",
             "duration_s": cfg.duration,
-            "channel": if self.channel.is_empty() { "both" } else { self.channel.as_str() },
+            "channel": cfg.channel.as_str(),
             "label": g.label(),
         });
         if action == "both" {
@@ -635,30 +687,33 @@ fn hello_message(token: &str) -> Value {
             "config_schema": [
                 { "section": "通用", "fields": [
                     { "key": "github_url", "type": "text", "label": "GitHub 链接", "default": "https://github.com/pingfanH/phigrab", "description": "仅展示，可复制" },
-                    { "key": "channel", "type": "channel", "label": "输出通道", "default": "both" },
                     { "key": "throttle_ms", "type": "number", "label": "节流(ms)", "default": 80, "min": 0, "max": 1000, "description": "同一判定档在该间隔内多次命中只触发一次" }
                 ]},
                 { "section": "Miss", "fields": [
                     { "key": "miss_enable", "type": "bool", "label": "Miss 触发", "default": true },
                     { "key": "miss_strength", "type": "percent", "label": "Miss 强度", "default": 60 },
                     { "key": "miss_duration", "type": "duration", "label": "Miss 时长", "default": 1.5 },
-                    { "key": "miss_preset", "type": "preset", "label": "Miss 波形", "default": "CS2-受伤" }
+                    { "key": "miss_preset", "type": "preset", "label": "Miss 波形", "default": "CS2-受伤" },
+                    { "key": "miss_channel", "type": "channel", "label": "Miss 通道", "default": "both" }
                 ]},
                 { "section": "Bad", "fields": [
                     { "key": "bad_enable", "type": "bool", "label": "Bad 触发", "default": true },
                     { "key": "bad_strength", "type": "percent", "label": "Bad 强度", "default": 35 },
                     { "key": "bad_duration", "type": "duration", "label": "Bad 时长", "default": 1.0 },
-                    { "key": "bad_preset", "type": "preset", "label": "Bad 波形", "default": "CS2-受伤" }
+                    { "key": "bad_preset", "type": "preset", "label": "Bad 波形", "default": "CS2-受伤" },
+                    { "key": "bad_channel", "type": "channel", "label": "Bad 通道", "default": "both" }
                 ]},
                 { "section": "Perfect / Good", "fields": [
                     { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": false },
                     { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 20 },
                     { "key": "good_duration", "type": "duration", "label": "Good 时长", "default": 1.0 },
                     { "key": "good_preset", "type": "preset", "label": "Good 波形", "default": "" },
+                    { "key": "good_channel", "type": "channel", "label": "Good 通道", "default": "both" },
                     { "key": "perfect_enable", "type": "bool", "label": "Perfect 触发", "default": false },
                     { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 },
                     { "key": "perfect_duration", "type": "duration", "label": "Perfect 时长", "default": 1.0 },
-                    { "key": "perfect_preset", "type": "preset", "label": "Perfect 波形", "default": "" }
+                    { "key": "perfect_preset", "type": "preset", "label": "Perfect 波形", "default": "" },
+                    { "key": "perfect_channel", "type": "channel", "label": "Perfect 通道", "default": "both" }
                 ]}
             ]
         }
@@ -759,6 +814,16 @@ async fn run(
                                 }
                                 ws.send(Message::Text(pong.to_string())).await?;
                             }
+                            Some("device_info") => {
+                                let max_a = v.get("max_strength_a").and_then(Value::as_u64).unwrap_or(0) as u32;
+                                let max_b = v.get("max_strength_b").and_then(Value::as_u64).unwrap_or(0) as u32;
+                                if max_a > 0 {
+                                    DGHUB_MAX_STRENGTH_A.store(max_a, Ordering::Relaxed);
+                                }
+                                if max_b > 0 {
+                                    DGHUB_MAX_STRENGTH_B.store(max_b, Ordering::Relaxed);
+                                }
+                            }
                             Some("stop") => {
                                 info!("dghub: stop requested by host");
                                 return Ok(());
@@ -803,22 +868,27 @@ async fn run(
     }
 }
 
-/// 构造游戏线程每帧调用的 `UpdateFn`：对 `judge.counts()` 做 diff，把新增的
-/// 各档判定逐个推入 channel。不 drain `judgements`，与多人 live 共存。
+/// 构造游戏线程每帧调用的 `UpdateFn`：读取不会被多人 live drain 的判定记录，
+/// 把新增的各档判定逐个推入 channel。
 pub fn build_update_fn(handle: DghubHandle) -> UpdateFn {
-    let mut last = [0u32; 4];
-    Box::new(move |_t, _res, judge| {
-        let counts = judge.counts();
-        for i in 0..4 {
-            let mut n = counts[i].saturating_sub(last[i]);
-            while n > 0 {
-                if !handle.send(Grade::from_index(i)) {
-                    return;
-                }
-                n -= 1;
+    let mut last_record = 0usize;
+    Box::new(move |_t, res, judge| {
+        res.dghub_max_strength = max_strength();
+        let (records, len) = {
+            let records = judge.judgement_records.borrow();
+            if last_record > records.len() {
+                last_record = records.len();
+            }
+            let records = records[last_record..].to_vec();
+            let len = last_record + records.len();
+            (records, len)
+        };
+        for record in records {
+            if !handle.send(Grade::from_record(record)) {
+                return;
             }
         }
-        last = counts;
+        last_record = len;
     })
 }
 

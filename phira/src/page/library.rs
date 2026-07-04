@@ -14,7 +14,7 @@ use crate::{
     tabs::{Tabs, TitleFn},
     tags::TagsDialog,
 };
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result};
 use chrono::{DateTime, Utc};
 use inputbox::InputBox;
 #[cfg(target_os = "android")]
@@ -264,8 +264,8 @@ impl LibraryPage {
             show_message(tl!("offline-mode")).error();
             return;
         }
-        if get_data().me.is_none() {
-            show_error(anyhow!(tl!("must-login")));
+        if self.tags.show_me && get_data().me.is_none() {
+            show_error(Error::msg(tl!("must-login")));
             return;
         }
         if !check_read_tos_and_policy(false, false) {

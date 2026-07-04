@@ -552,7 +552,7 @@ impl SongScene {
 
             should_update: Arc::default(),
 
-            my_rating_task: if offline_mode {
+            my_rating_task: if offline_mode || get_data().me.is_none() {
                 None
             } else {
                 id.map(|id| {

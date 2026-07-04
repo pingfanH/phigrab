@@ -149,18 +149,26 @@ export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$ROOT/.cargo/android-linker-
 # NDK r26 + legacy ld invocation may miss libunwind search paths. The per-target
 # linker wrapper adds the correct clang runtime directory for each ABI.
 
-if [[ ! -d "$ANDROID_SDK_ROOT/platforms/android-$TARGET_SDK" ]]; then
-  echo "[Phigrab] Android platform $TARGET_SDK missing; trying to install..."
+ensure_android_platform() {
+  local sdk="$1"
+  if [[ -d "$ANDROID_SDK_ROOT/platforms/android-$sdk" ]]; then
+    return 0
+  fi
+
+  echo "[Phigrab] Android platform $sdk missing; trying to install..."
   if SDKMANAGER="$(find_sdkmanager)"; then
-    yes | "$SDKMANAGER" --sdk_root="$ANDROID_SDK_ROOT" "platforms;android-$TARGET_SDK" "platform-tools" "build-tools;$TARGET_SDK.0.0" >/dev/null
-    echo "[Phigrab] installed Android platform $TARGET_SDK."
+    yes | "$SDKMANAGER" --sdk_root="$ANDROID_SDK_ROOT" "platforms;android-$sdk" "platform-tools" "build-tools;$TARGET_SDK.0.0" >/dev/null
+    echo "[Phigrab] installed Android platform $sdk."
   else
     echo "[Phigrab] sdkmanager not found."
     echo "Please install Android SDK command-line tools, then run:"
-    echo "  sdkmanager --sdk_root=\"$ANDROID_SDK_ROOT\" \"platforms;android-$TARGET_SDK\" \"platform-tools\""
+    echo "  sdkmanager --sdk_root=\"$ANDROID_SDK_ROOT\" \"platforms;android-$sdk\" \"platform-tools\""
     exit 1
   fi
-fi
+}
+
+ensure_android_platform "$TARGET_SDK"
+ensure_android_platform 29
 
 check_java_toolchain || exit 1
 

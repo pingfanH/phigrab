@@ -7,6 +7,7 @@ license = "GPL-3.0-only"
 [package.metadata.android]
 package_name = "com.pingfanh.phigrab"
 label = "Phigrab"
+target_sdk_version = 35
 assets = "../assets"
 res = "android-res"
 icon = "@mipmap/ic_launcher"

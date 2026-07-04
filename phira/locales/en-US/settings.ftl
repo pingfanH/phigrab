@@ -64,6 +64,7 @@ item-dghub-duration = Duration (s)
 item-dghub-preset = Waveform Preset
 item-dghub-channel = Output Channel
 item-dghub-throttle = Throttle (ms)
+item-dghub-indicator-style = Indicator Style
 dghub = External
 
 item-adjust = Automatic Time Adjustment

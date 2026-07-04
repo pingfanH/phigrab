@@ -15,7 +15,7 @@ use crate::{
     ext::{parse_time, screen_aspect, semi_white, RectExt, SafeTexture, ScaleType},
     fs::FileSystem,
     info::{ChartFormat, ChartInfo},
-    judge::Judge,
+    judge::{Judge, Judgement, JudgementRecord},
     parse::{parse_extra, parse_pec, parse_phigros, parse_rpe},
     task::Task,
     time::TimeManager,
@@ -52,6 +52,7 @@ use inner::*;
 
 const WAIT_TIME: f64 = 0.5;
 const AFTER_TIME: f64 = 0.7;
+const DGHUB_INDICATOR_FADE: f64 = 0.35;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -89,6 +90,73 @@ fn fmt_time(t: f32) -> String {
     t /= 60;
     let hrs = t % 100;
     format!("{}{hrs:02}:{mins:02}:{secs:05.2}", if f { "-" } else { "" })
+}
+
+fn render_hud_text(ui: &mut Ui, text: impl Into<String>, x: f32, y: f32, size: f32, anchor: (f32, f32), color: Color) {
+    ui.text(text.into())
+        .pos(x, y)
+        .anchor(anchor.0, anchor.1)
+        .no_baseline()
+        .size(size)
+        .color(color)
+        .draw();
+}
+
+fn dghub_indicator_value(level: f32, max_strength: u32) -> u32 {
+    (level.clamp(0., 1.) * max_strength.max(1) as f32).round() as u32
+}
+
+struct DghubIndicator<'a> {
+    label: &'a str,
+    center: (f32, f32),
+    level: f32,
+    max_strength: u32,
+}
+
+fn render_dghub_channel_bar_indicator(ui: &mut Ui, indicator: &DghubIndicator) {
+    let level = indicator.level.clamp(0., 1.);
+    let max_strength = indicator.max_strength.max(1);
+    let value = dghub_indicator_value(level, max_strength);
+    let alpha = 0.58 + level * 0.42;
+    let w = 0.24;
+    let h = 0.028;
+    let (center_x, center_y) = indicator.center;
+    let r = Rect::new(center_x - w / 2., center_y - h / 2., w, h);
+    render_hud_text(ui, indicator.label, center_x, center_y - 0.068, 0.34, (0.5, 0.5), Color::new(1., 1., 1., alpha));
+    ui.fill_rect(r, Color::new(1., 1., 1., 0.045));
+    ui.fill_rect(Rect::new(r.x, r.y, r.w * level, r.h), Color::new(1., 1., 1., 0.76 * alpha));
+    if level > 0. {
+        ui.fill_rect(Rect::new(r.x + (r.w * level - 0.006).max(0.), r.y, 0.006, r.h), Color::new(1., 1., 1., 0.28 * alpha));
+    }
+    render_hud_text(ui, format!("{value} / {max_strength}"), center_x, center_y + 0.068, 0.24, (0.5, 0.5), Color::new(1., 1., 1., alpha * 0.82));
+}
+
+fn render_dghub_channel_ring_indicator(ui: &mut Ui, indicator: &DghubIndicator) {
+    let level = indicator.level.clamp(0., 1.);
+    let max_strength = indicator.max_strength.max(1);
+    let value = dghub_indicator_value(level, max_strength);
+    let alpha = 0.58 + level * 0.42;
+    let radius = 0.055;
+    let (center_x, center_y) = indicator.center;
+    render_hud_text(ui, indicator.label, center_x, center_y - 0.116, 0.34, (0.5, 0.5), Color::new(1., 1., 1., alpha));
+    ui.stroke_circle(center_x, center_y, radius, 0.007, Color::new(1., 1., 1., 0.07));
+    if level > 0. {
+        ui.scope(|ui| {
+            ui.dx(center_x);
+            ui.dy(center_y);
+            ui.stroke_path(&Ui::loading_path(0., level * std::f32::consts::TAU, radius), 0.008, Color::new(1., 1., 1., 0.86 * alpha));
+        });
+    }
+    render_hud_text(ui, value.to_string(), center_x, center_y, 0.38, (0.5, 0.5), Color::new(1., 1., 1., alpha));
+    render_hud_text(ui, format!("{value} / {max_strength}"), center_x, center_y + 0.116, 0.24, (0.5, 0.5), Color::new(1., 1., 1., alpha * 0.82));
+}
+
+fn render_dghub_channel_indicator(ui: &mut Ui, indicator: DghubIndicator, style: &str) {
+    if style.trim().eq_ignore_ascii_case("bar") {
+        render_dghub_channel_bar_indicator(ui, &indicator);
+    } else {
+        render_dghub_channel_ring_indicator(ui, &indicator);
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -156,6 +224,10 @@ pub struct GameScene {
     fps_total_time: f64,
     fps_last_frame_time: f64,
 
+    dghub_indicator_record_index: usize,
+    dghub_indicator_until: [f64; 2],
+    dghub_indicator_level: [f32; 2],
+
     dead: bool,
 }
 
@@ -174,6 +246,9 @@ macro_rules! reset {
         $self.fps_frame_count = 0;
         $self.fps_total_time = 0.0;
         $self.fps_last_frame_time = $tm.real_time();
+        $self.dghub_indicator_record_index = 0;
+        $self.dghub_indicator_until = [0.; 2];
+        $self.dghub_indicator_level = [0.; 2];
         $self.dead = false;
     }};
 }
@@ -350,6 +425,10 @@ impl GameScene {
             fps_total_time: 0.0,
             fps_last_frame_time: 0.0,
 
+            dghub_indicator_record_index: 0,
+            dghub_indicator_until: [0.; 2],
+            dghub_indicator_level: [0.; 2],
+
             dead: false,
         })
     }
@@ -423,6 +502,78 @@ impl GameScene {
         Ok(true)
     }
 
+    fn dghub_grade_config(&self, index: usize) -> (bool, u32, f64, &str) {
+        let cfg = &self.res.config;
+        match index {
+            0 => (cfg.dghub_perfect_enable, cfg.dghub_perfect_strength, cfg.dghub_perfect_duration, cfg.dghub_perfect_channel.as_str()),
+            1 => (cfg.dghub_good_enable, cfg.dghub_good_strength, cfg.dghub_good_duration, cfg.dghub_good_channel.as_str()),
+            2 => (cfg.dghub_bad_enable, cfg.dghub_bad_strength, cfg.dghub_bad_duration, cfg.dghub_bad_channel.as_str()),
+            _ => (cfg.dghub_miss_enable, cfg.dghub_miss_strength, cfg.dghub_miss_duration, cfg.dghub_miss_channel.as_str()),
+        }
+    }
+
+    fn pulse_dghub_indicator_channel(&mut self, channel: usize, level: f32, until: f64) {
+        self.dghub_indicator_level[channel] = self.dghub_indicator_level[channel].max(level);
+        self.dghub_indicator_until[channel] = self.dghub_indicator_until[channel].max(until);
+    }
+
+    fn dghub_grade_index_from_record(record: JudgementRecord) -> usize {
+        match record.judgement {
+            Judgement::Perfect => 0,
+            Judgement::Good => 1,
+            Judgement::Bad => 2,
+            Judgement::Miss => 3,
+        }
+    }
+
+    fn update_dghub_indicators(&mut self, time: f64) {
+        let (records, len) = {
+            let records = self.judge.judgement_records.borrow();
+            if self.dghub_indicator_record_index > records.len() {
+                self.dghub_indicator_record_index = records.len();
+            }
+            let records = records[self.dghub_indicator_record_index..].to_vec();
+            let len = self.dghub_indicator_record_index + records.len();
+            (records, len)
+        };
+        if !self.res.config.dghub_enable {
+            self.dghub_indicator_record_index = len;
+            return;
+        }
+        for record in records {
+            let i = Self::dghub_grade_index_from_record(record);
+            let (enabled, strength, duration, channel) = self.dghub_grade_config(i);
+            if !enabled {
+                continue;
+            }
+            let level = (strength as f32 / 100.).clamp(0.08, 1.);
+            let until = time + duration.max(0.);
+            match channel.trim().to_ascii_lowercase().as_str() {
+                "a" => self.pulse_dghub_indicator_channel(0, level, until),
+                "b" => self.pulse_dghub_indicator_channel(1, level, until),
+                _ => {
+                    self.pulse_dghub_indicator_channel(0, level, until);
+                    self.pulse_dghub_indicator_channel(1, level, until);
+                }
+            }
+        }
+        self.dghub_indicator_record_index = len;
+    }
+
+    fn dghub_indicator_levels(&self, time: f64) -> [f32; 2] {
+        let mut levels = [0.; 2];
+        for (i, level) in levels.iter_mut().enumerate() {
+            let remaining = self.dghub_indicator_until[i] - time;
+            let p = if remaining >= 0. {
+                1.
+            } else {
+                (1. + remaining / DGHUB_INDICATOR_FADE).clamp(0., 1.) as f32
+            };
+            *level = self.dghub_indicator_level[i] * p;
+        }
+        levels
+    }
+
     fn ui(&mut self, ui: &mut Ui, tm: &mut TimeManager) -> Result<()> {
         let time = tm.now();
         let p = match self.state {
@@ -448,6 +599,9 @@ impl GameScene {
         } else if let Some(touch) = ui.ensure_touches().iter().find(|touch| self.pause_touch_hit(tm, touch)).cloned() {
             self.handle_pause_touch(tm, &touch)?;
         }
+        let show_dghub_indicators = self.res.config.dghub_enable;
+        let dghub_indicator_levels = self.dghub_indicator_levels(tm.real_time());
+        let dghub_indicator_style = self.res.config.dghub_indicator_style.clone();
         let res = &mut self.res;
         let eps = 2e-2 / res.aspect_ratio;
         let top = -1. / res.aspect_ratio;
@@ -504,6 +658,34 @@ impl GameScene {
                     ui.fill_rect(r, c);
                 },
             );
+            if show_dghub_indicators {
+                let combo_y = if legacy_aui {
+                    top + eps * 2. - (1. - p) * 0.4 + unit_h / 2.
+                } else {
+                    let ct = ui.text("0").size(1.0).measure().center();
+                    top + eps * 2. - (1. - p) * 0.4 + ct.y
+                } + 0.06;
+                render_dghub_channel_indicator(
+                    ui,
+                    DghubIndicator {
+                        label: "A",
+                        center: (-0.34, combo_y),
+                        level: dghub_indicator_levels[0],
+                        max_strength: res.dghub_max_strength[0],
+                    },
+                    &dghub_indicator_style,
+                );
+                render_dghub_channel_indicator(
+                    ui,
+                    DghubIndicator {
+                        label: "B",
+                        center: (0.34, combo_y),
+                        level: dghub_indicator_levels[1],
+                        max_strength: res.dghub_max_strength[1],
+                    },
+                    &dghub_indicator_style,
+                );
+            }
             if self.judge.combo() >= 3 {
                 if legacy_aui {
                     let combo_top = top + eps * 2. - (1. - p) * 0.4;
@@ -1112,6 +1294,7 @@ impl Scene for GameScene {
             }
             self.gl.quad_gl.viewport(None);
         }
+        self.update_dghub_indicators(tm.real_time());
         if let Some(update) = &mut self.update_fn {
             update(self.res.time, &mut self.res, &mut self.judge);
         }

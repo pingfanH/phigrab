@@ -416,6 +416,7 @@ pub struct Resource {
 
     pub alpha: f32,
     pub judge_line_color: Color,
+    pub dghub_max_strength: [u32; 2],
 
     pub camera: Camera2D,
 
@@ -537,6 +538,7 @@ impl Resource {
 
             alpha: 1.,
             judge_line_color: res_pack.info.fx_perfect(),
+            dghub_max_strength: [100, 100],
 
             camera,
 
