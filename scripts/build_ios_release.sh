@@ -121,7 +121,8 @@ package_target() {
   local artifact_arch="$2"
   local version="$3"
   local app_dir="$DIST_DIR/$APP_NAME-$artifact_arch.app"
-  local archive="$DIST_DIR/$APP_NAME-$version-$artifact_arch.app.zip"
+  local payload_dir="$DIST_DIR/payload-$artifact_arch/Payload"
+  local ipa="$DIST_DIR/$APP_NAME-$version-$artifact_arch.ipa"
   local binary="$CARGO_TARGET_DIR/$rust_target/release/$BIN_NAME"
 
   log "Packaging $artifact_arch"
@@ -157,8 +158,18 @@ package_target() {
 </plist>
 PLIST
 
-  rm -f "$archive"
-  ditto -c -k --keepParent "$app_dir" "$archive"
+  if [[ -n "${IOS_MOBILE_PROVISION_BASE64:-}" ]]; then
+    printf '%s' "$IOS_MOBILE_PROVISION_BASE64" | base64 --decode > "$app_dir/embedded.mobileprovision"
+  fi
+  if [[ -n "${IOS_CODESIGN_IDENTITY:-}" ]]; then
+    codesign --force --sign "$IOS_CODESIGN_IDENTITY" "$app_dir"
+  fi
+
+  rm -rf "$(dirname "$payload_dir")"
+  mkdir -p "$payload_dir"
+  cp -R "$app_dir" "$payload_dir/$APP_NAME.app"
+  rm -f "$ipa"
+  ditto -c -k --keepParent "$(dirname "$payload_dir")/Payload" "$ipa"
 }
 
 main() {

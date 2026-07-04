@@ -300,7 +300,6 @@ package_macos() {
   local version="$2"
   local arch="$3"
   local app_dir="$DIST_DIR/$APP_NAME.app"
-  local archive="$DIST_DIR/$APP_NAME-$version-macos-$arch.app.zip"
   local dmg="$DIST_DIR/$APP_NAME-$version-macos-$arch.dmg"
 
   log "Packaging macOS $arch"
@@ -337,11 +336,12 @@ package_macos() {
 PLIST
   printf 'APPL????' > "$app_dir/Contents/PkgInfo"
 
-  rm -f "$archive"
-  ditto -c -k --keepParent "$app_dir" "$archive"
   if command -v hdiutil >/dev/null 2>&1; then
     rm -f "$dmg"
     hdiutil create -volname "$APP_NAME" -srcfolder "$app_dir" -ov -format UDZO "$dmg"
+  else
+    printf '%s\n' "hdiutil not found; macOS release requires a dmg artifact." >&2
+    exit 1
   fi
 }
 
@@ -378,7 +378,20 @@ DESKTOP
     cp "$ROOT_DIR/assets/icon.png" "$appdir/usr/share/icons/hicolor/256x256/apps/icon.png"
     cp "$out_dir/$PACKAGE_NAME.desktop" "$appdir/$PACKAGE_NAME.desktop"
     cp "$ROOT_DIR/assets/icon.png" "$appdir/icon.png"
-    appimagetool "$appdir" "$DIST_DIR/$APP_NAME-$version-linux-x64.AppImage"
+    cp "$ROOT_DIR/assets/icon.png" "$appdir/.DirIcon"
+    cat > "$appdir/AppRun" <<APPRUN
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="\$(dirname "\$(readlink -f "\$0")")"
+cd "\$HERE/usr/bin"
+exec "\$HERE/usr/bin/$APP_NAME" "\$@"
+APPRUN
+    chmod +x "$appdir/AppRun"
+    APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}" appimagetool "$appdir" "$DIST_DIR/$APP_NAME-$version-linux-x64.AppImage"
+  else
+    printf '%s\n' "appimagetool not found; Linux release requires an AppImage artifact." >&2
+    printf '%s\n' "Install appimagetool or run the GitHub release workflow." >&2
+    exit 1
   fi
 }
 
