@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-MANIFEST="/Users/pingfanh/project/phira/phira-main/Cargo.toml"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MANIFEST="${MANIFEST:-$ROOT/phira-main/Cargo.toml}"
 ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
+ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+DIST_DIR="${DIST_DIR:-$ROOT/dist/android}"
+FFMPEG_VERSION="${PRPR_AVC_FFMPEG_VERSION:-20260309_v0}"
+ANDROID_NDK_VERSION="${ANDROID_NDK_VERSION:-26.1.10909125}"
 TARGET_SDK="$(awk '
   /^\[package\.metadata\.android\]/ { in_android=1; next }
   /^\[/ { if (in_android==1) in_android=0 }
@@ -14,8 +18,14 @@ TARGET_SDK="$(awk '
   }
 ' "$MANIFEST")"
 TARGET_SDK="${TARGET_SDK:-35}"
-NDK_HOME="${NDK_HOME:-$ANDROID_SDK_ROOT/ndk/26.1.10909125}"
-TOOLCHAIN_BIN="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+NDK_HOME="${NDK_HOME:-${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION}}"
+case "$(uname -s)" in
+  Darwin) HOST_TAG="darwin-x86_64" ;;
+  Linux) HOST_TAG="linux-x86_64" ;;
+  MINGW*|MSYS*|CYGWIN*) HOST_TAG="windows-x86_64" ;;
+  *) echo "Unsupported host OS: $(uname -s)" >&2; exit 1 ;;
+esac
+TOOLCHAIN_BIN="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin"
 BUILD_TOOLS_ROOT="$ANDROID_SDK_ROOT/build-tools"
 
 find_sdkmanager() {
@@ -32,8 +42,8 @@ find_sdkmanager() {
   return 1
 }
 
-if ! cargo --list | rg -q "quad-apk"; then
-  echo "[Mai2Chart] cargo-quad-apk not found. Installing..."
+if ! cargo --list | grep -q "quad-apk"; then
+  echo "[Phigrab] cargo-quad-apk not found. Installing..."
   cargo install cargo-quad-apk
 fi
 
@@ -43,16 +53,33 @@ check_java_toolchain() {
   javac_bin="$(command -v javac || true)"
   keytool_bin="$(command -v keytool || true)"
   if [[ -z "$java_bin" || -z "$javac_bin" || -z "$keytool_bin" ]]; then
-    echo "[Mai2Chart] java/javac/keytool not found in PATH."
+    echo "[Phigrab] java/javac/keytool not found in PATH."
     return 1
   fi
 
-  echo "[Mai2Chart] using Java runtime: $("$java_bin" -version 2>&1 | head -n 1)"
+  echo "[Phigrab] using Java runtime: $("$java_bin" -version 2>&1 | head -n 1)"
 }
 
-echo "[Mai2Chart] ensure Android targets..."
-rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-echo "[Mai2Chart] target sdk from Cargo.toml: android-$TARGET_SDK"
+download_static_libs() {
+  local target="$1"
+  local dst="$ROOT/prpr-avc/static-lib/$target"
+  if [[ -d "$dst" ]] && find "$dst" -mindepth 1 -print -quit | grep -q .; then
+    return
+  fi
+  mkdir -p "$dst"
+  local archive="$DIST_DIR/cache/$target-prpr-avc-static-lib.tar.gz"
+  mkdir -p "$(dirname "$archive")"
+  curl -fL --retry 3 \
+    -o "$archive" \
+    "https://github.com/TeamFlos/prpr-avc-ffmpeg/releases/download/$FFMPEG_VERSION/$target.tar.gz"
+  tar -xzf "$archive" -C "$dst"
+}
+
+echo "[Phigrab] ensure Android targets..."
+rustup target add aarch64-linux-android armv7-linux-androideabi
+download_static_libs aarch64-linux-android
+download_static_libs armv7-linux-androideabi
+echo "[Phigrab] target sdk from Cargo.toml: android-$TARGET_SDK"
 
 if [[ -x "$TOOLCHAIN_BIN/llvm-ar" ]]; then
   for ar_name in \
@@ -103,12 +130,12 @@ export NDK_HOME
 # linker wrapper adds the correct clang runtime directory for each ABI.
 
 if [[ ! -d "$ANDROID_SDK_ROOT/platforms/android-$TARGET_SDK" ]]; then
-  echo "[Mai2Chart] Android platform $TARGET_SDK missing; trying to install..."
+  echo "[Phigrab] Android platform $TARGET_SDK missing; trying to install..."
   if SDKMANAGER="$(find_sdkmanager)"; then
-    yes | "$SDKMANAGER" --sdk_root="$ANDROID_SDK_ROOT" "platforms;android-$TARGET_SDK" "platform-tools" >/dev/null
-    echo "[Mai2Chart] installed Android platform $TARGET_SDK."
+    yes | "$SDKMANAGER" --sdk_root="$ANDROID_SDK_ROOT" "platforms;android-$TARGET_SDK" "platform-tools" "build-tools;$TARGET_SDK.0.0" >/dev/null
+    echo "[Phigrab] installed Android platform $TARGET_SDK."
   else
-    echo "[Mai2Chart] sdkmanager not found."
+    echo "[Phigrab] sdkmanager not found."
     echo "Please install Android SDK command-line tools, then run:"
     echo "  sdkmanager --sdk_root=\"$ANDROID_SDK_ROOT\" \"platforms;android-$TARGET_SDK\" \"platform-tools\""
     exit 1
@@ -130,13 +157,17 @@ ensure_dx_compat() {
   fallback_dx="$(find "$BUILD_TOOLS_ROOT" -maxdepth 2 -type f -name dx | sort -V | tail -n 1 || true)"
   if [[ -n "${fallback_dx:-}" ]]; then
     ln -sf "$fallback_dx" "$BUILD_TOOLS_ROOT/$latest_bt/dx"
-    echo "[Mai2Chart] linked dx for build-tools/$latest_bt -> $fallback_dx"
+    echo "[Phigrab] linked dx for build-tools/$latest_bt -> $fallback_dx"
   else
-    echo "[Mai2Chart] warning: no legacy dx found in build-tools; build may fail."
+    echo "[Phigrab] warning: no legacy dx found in build-tools; build may fail."
   fi
 }
 
 ensure_dx_compat
 
-echo "[Mai2Chart] building and running via cargo quad-apk (macroquad-compatible glue)..."
-cargo quad-apk run --manifest-path "$MANIFEST" --release -p phira-main
+mkdir -p "$DIST_DIR"
+echo "[Phigrab] building APK via cargo quad-apk..."
+cargo quad-apk build --manifest-path "$MANIFEST" --release -p phira-main --out-dir "$DIST_DIR"
+
+echo "[Phigrab] Android artifacts:"
+find "$DIST_DIR" -maxdepth 2 -type f | sort
