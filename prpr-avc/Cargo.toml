@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 thiserror = "2.0.18"
-tracing = { workspace = true }
+tracing = { version = "0.1.44" }
 
 [target.'cfg(target_env = "ohos")'.dependencies]
-sasa = { workspace = true, default-features = false, features = ["ohos"] }
+sasa = { git = "https://github.com/Mivik/sasa", rev = "e76229b", default-features = false, features = ["ohos"] }
 
 [target.'cfg(not(target_env = "ohos"))'.dependencies]
-sasa = { workspace = true, default-features = false }
+sasa = { git = "https://github.com/Mivik/sasa", rev = "e76229b", default-features = false }

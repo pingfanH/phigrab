@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = { workspace = true }
-async-trait = { workspace = true }
-pollster = { workspace = true }
-prpr = { workspace = true }
+anyhow = { version = "1.0" }
+async-trait = { version = "0.1.89" }
+pollster = { version = "0.4.0" }
+prpr = { path = "../prpr", default-features = false }

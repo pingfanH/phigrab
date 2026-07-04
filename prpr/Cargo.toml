@@ -1,11 +1,11 @@
 [package]
 name = "prpr"
-version = { workspace = true }
-edition = { workspace = true }
-license = { workspace = true }
+version = "0.7.1"
+edition = "2021"
+license = "GPL-3.0-only"
 
-[lints]
-workspace = true
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(closed)'] }
 
 [lib]
 
@@ -15,25 +15,25 @@ video = ["dep:prpr-avc"]
 log = ["dep:tracing-subscriber", "dep:colored"]
 
 [dependencies]
-anyhow = { workspace = true }
-async-trait = { workspace = true }
-base64 = { workspace = true }
-bitflags = { workspace = true, features = ["serde"] }
+anyhow = { version = "1.0" }
+async-trait = { version = "0.1.89" }
+base64 = { version = "0.22.1" }
+bitflags = { version = "2.11.0", features = ["serde"] }
 byteorder = "1.5.0"
 cfg-if = "1.0.4"
 chardetng = "0.1.17"
-chrono = { workspace = true, features = ["serde"] }
+chrono = { version = "0.4.44", features = ["serde"] }
 color-thief = "0.2.2"
 colored = { version = "3.1.1", optional = true }
 concat-string = "1.0.1"
 csv = "1.4.0"
 fastblur = "0.1.1"
-fluent = { workspace = true }
-fluent-syntax = { workspace = true }
+fluent = { version = "0.17.0" }
+fluent-syntax = { version = "0.12.0" }
 glyph_brush = "0.7.12"
-hex = { workspace = true }
+hex = { version = "0.4.3" }
 hmac = "0.12.1"
-image = { workspace = true, default-features = false, features = [
+image = { version = "0.25.10", default-features = false, features = [
 	"bmp",
 	"gif",
 	"jpeg",
@@ -41,23 +41,23 @@ image = { workspace = true, default-features = false, features = [
 	"rayon",
 	"webp",
 ] }
-inputbox = { workspace = true }
+inputbox = { version = "0.1.1" }
 intl-memoizer = "0.5.3"
 libc = "0.2.183"
-lru = { workspace = true }
-lyon = { workspace = true }
+lru = { version = "0.16.3" }
+lyon = { version = "1.0.19" }
 miniz_oxide = "0.9.1"
-nalgebra = { workspace = true }
+nalgebra = { version = "0.34.1" }
 obfstr = "0.4.4"
-once_cell = { workspace = true }
+once_cell = { version = "1.21.4" }
 ordered-float = "5.1.0"
 phf = { version = "0.13.1", features = ["macros"] }
-rand = { workspace = true }
-regex = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-serde_yaml = { workspace = true }
-sha2 = { workspace = true }
+rand = { version = "0.8.5" }
+regex = { version = "1.12.3" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149" }
+serde_yaml = { version = "0.9.34" }
+sha2 = { version = "0.10.9" }
 subtle = "2.6.1"
 symphonia = { version = "0.5", features = [
 	"flac",
@@ -67,45 +67,45 @@ symphonia = { version = "0.5", features = [
 	"wav",
 	"pcm",
 ] }
-sys-locale = { workspace = true }
-tempfile = { workspace = true }
-tracing = { workspace = true }
+sys-locale = { version = "0.3.2" }
+tempfile = { version = "3.27.0" }
+tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"], optional = true }
 unic-langid = { version = "0.9.6", features = ["macros"] }
-uuid = { workspace = true, features = ["v4"] }
-zip = { workspace = true, default-features = false, features = ["deflate"] }
+uuid = { version = "1.22.0", features = ["v4"] }
+zip = { version = "8.3.0", default-features = false, features = ["deflate"] }
 
-macroquad = { workspace = true, default-features = false }
-miniquad = { workspace = true }
-prpr-avc = { workspace = true, optional = true }
-prpr-l10n = { workspace = true }
+macroquad = { git = "https://github.com/Mivik/prpr-macroquad", rev = "b2eab29", default-features = false }
+miniquad = { git = "https://github.com/Mivik/prpr-miniquad", rev = "0c525a3" }
+prpr-avc = { path = "../prpr-avc", optional = true }
+prpr-l10n = { path = "../prpr-l10n" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios", target_env = "ohos")))'.dependencies]
 open = "5.3.3"
-rfd = { workspace = true }
+rfd = { version = "0.17.2" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
-objc2 = { workspace = true }
-objc2-foundation = { workspace = true }
-objc2-ui-kit = { workspace = true, features = ["objc2-uniform-type-identifiers"] }
-objc2-uniform-type-identifiers = { workspace = true }
+objc2 = { version = "0.6.4" }
+objc2-foundation = { version = "0.3.2" }
+objc2-ui-kit = { version = "0.3.2", features = ["objc2-uniform-type-identifiers"] }
+objc2-uniform-type-identifiers = { version = "0.3.2" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.22.4"
 ndk-context = "0.1"
-sasa = { workspace = true, default-features = false, features = ["oboe"] }
+sasa = { git = "https://github.com/Mivik/sasa", rev = "e76229b", default-features = false, features = ["oboe"] }
 
 [target.'cfg(target_env = "ohos")'.dependencies]
-sasa = { workspace = true, default-features = false, features = ["ohos"] }
+sasa = { git = "https://github.com/Mivik/sasa", rev = "e76229b", default-features = false, features = ["ohos"] }
 
 [target.'cfg(not(any(target_os = "android", target_env = "ohos")))'.dependencies]
-sasa = { workspace = true, default-features = true }
+sasa = { git = "https://github.com/Mivik/sasa", rev = "e76229b", default-features = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
+tokio = { version = "1.50.0", features = ["rt-multi-thread", "fs"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-tokio = { workspace = true }
+tokio = { version = "1.50.0" }
 web-sys = { version = "0.3", features = [
 	"Location",
 	"Performance",
@@ -117,7 +117,7 @@ wasm-bindgen = "*"
 wasm-bindgen-futures = "0.4"
 
 [build-dependencies]
-walkdir = { workspace = true }
+walkdir = { version = "2.5.0" }
 
 [dev-dependencies]
-walkdir = { workspace = true }
+walkdir = { version = "2.5.0" }

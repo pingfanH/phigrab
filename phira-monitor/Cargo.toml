@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = { workspace = true }
-chrono = { workspace = true }
-futures-util = { workspace = true }
+anyhow = { version = "1.0" }
+chrono = { version = "0.4.44" }
+futures-util = { version = "0.3.32" }
 log = "0.4.29"
-macroquad = { workspace = true, default-features = false }
+macroquad = { git = "https://github.com/Mivik/prpr-macroquad", rev = "b2eab29", default-features = false }
 pretty_env_logger = "0.5.0"
-reqwest = { workspace = true, default-features = false, features = [
+reqwest = { version = "0.13.2", default-features = false, features = [
     "json",
     "stream",
     "gzip",
@@ -19,12 +19,12 @@ reqwest = { workspace = true, default-features = false, features = [
     "system-proxy",
     "rustls",
 ] }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-serde_yaml = { workspace = true }
-tokio = { workspace = true }
-uuid = { workspace = true, features = ["v4"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149" }
+serde_yaml = { version = "0.9.34" }
+tokio = { version = "1.50.0" }
+uuid = { version = "1.22.0", features = ["v4"] }
 
-phira-mp-client = { workspace = true }
-phira-mp-common = { workspace = true }
-prpr = { workspace = true }
+phira-mp-client = { git = "https://github.com/TeamFlos/phira-mp", rev = "6967475" }
+phira-mp-common = { git = "https://github.com/TeamFlos/phira-mp", rev = "6967475" }
+prpr = { path = "../prpr", default-features = false }
