@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec /usr/bin/env bash "$0" "$@"
+fi
 set -euo pipefail
 
 APP_NAME="${APP_NAME:-Phigrab}"
@@ -285,7 +288,25 @@ zip_dir() {
   if command -v zip >/dev/null 2>&1; then
     (cd "$(dirname "$dir")" && zip -qry "$archive" "$(basename "$dir")")
   elif command -v powershell.exe >/dev/null 2>&1; then
-    powershell.exe -NoProfile -Command "\$ErrorActionPreference = 'Stop'; Compress-Archive -Path '$dir' -DestinationPath '$archive' -Force"
+    local ps_archive="$archive"
+    local ps_dir="$dir"
+    if command -v cygpath >/dev/null 2>&1; then
+      ps_archive="$(cygpath -w "$archive")"
+      ps_dir="$(cygpath -w "$dir")"
+    fi
+    powershell.exe -NoProfile -Command '
+      $ErrorActionPreference = "Stop"
+      $dir = $args[0]
+      $archive = $args[1]
+      $parent = Split-Path -LiteralPath $dir -Parent
+      $name = Split-Path -LiteralPath $dir -Leaf
+      Push-Location -LiteralPath $parent
+      try {
+        Compress-Archive -LiteralPath $name -DestinationPath $archive -Force
+      } finally {
+        Pop-Location
+      }
+    ' "$ps_dir" "$ps_archive"
   else
     printf '%s\n' "zip command not found; install zip or run on a GitHub runner with archive tools." >&2
     exit 1
@@ -319,7 +340,7 @@ package_macos() {
   cp "$(binary_path "$rust_target" "")" "$app_dir/Contents/MacOS/$APP_NAME"
   chmod +x "$app_dir/Contents/MacOS/$APP_NAME"
   cp -R "$ROOT_DIR/assets" "$app_dir/Contents/MacOS/assets"
-  cp "$ROOT_DIR/assets/icon.png" "$app_dir/Contents/Resources/icon.png"
+  cp "$ROOT_DIR/assets/icon.png" "$app_dir/Contents/Resources/AppIcon.png"
   cp "$ROOT_DIR/LICENSE" "$app_dir/Contents/Resources/LICENSE.txt"
   cat > "$app_dir/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -334,6 +355,8 @@ package_macos() {
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -426,13 +449,13 @@ main() {
   version="$(version)"
 
   log "Preparing $APP_NAME desktop release $version"
-  while IFS= read -r release_target; do
+  for release_target in $(targets_for_selection); do
     local rust_target
     rust_target="$(rust_target_for "$release_target")"
     ensure_host_can_build "$release_target"
     build_target "$rust_target"
     package_target "$release_target" "$rust_target" "$version"
-  done < <(targets_for_selection)
+  done
 
   log "Done. Artifacts are in $DIST_DIR"
 }
