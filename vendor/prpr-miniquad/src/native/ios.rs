@@ -70,6 +70,7 @@ struct WindowPayload {
     display: IosDisplay,
     context: Option<GraphicsContext>,
     event_handler: Option<Box<dyn EventHandler>>,
+    eagl_context: ObjcId,
     gles2: bool,
     f: Option<Box<dyn 'static + FnOnce(&mut crate::Context) -> Box<dyn EventHandler>>>,
 }
@@ -170,8 +171,12 @@ pub fn define_glk_view_dlg() -> *const Class {
     let superclass = class!(NSObject);
     let mut decl = ClassDecl::new("QuadViewDlg", superclass).unwrap();
 
-    extern "C" fn draw_in_rect(this: &Object, _: Sel, _: ObjcId, _: ObjcId) {
+    extern "C" fn draw_in_rect(this: &Object, _: Sel, view: ObjcId, _: NSRect) {
         let payload = get_window_payload(this);
+        unsafe {
+            let _: () = msg_send![class!(EAGLContext), setCurrentContext: payload.eagl_context];
+            let _: () = msg_send![view, bindDrawable];
+        }
         if payload.event_handler.is_none() {
             let f = payload.f.take().unwrap();
             payload.context = Some(GraphicsContext::new(payload.gles2));
@@ -208,7 +213,7 @@ pub fn define_glk_view_dlg() -> *const Class {
     unsafe {
         decl.add_method(
             sel!(glkView: drawInRect:),
-            draw_in_rect as extern "C" fn(&Object, Sel, ObjcId, ObjcId),
+            draw_in_rect as extern "C" fn(&Object, Sel, ObjcId, NSRect),
         );
     }
     decl.add_ivar::<*mut c_void>("display_ptr");
@@ -278,6 +283,7 @@ pub fn define_app_delegate() -> *const Class {
                         screen_width,
                         screen_height,
                         high_dpi: conf.high_dpi,
+                        dpi_scale: screen_scale as f32,
                         ..Default::default()
                     },
                     scale: screen_scale,
@@ -285,6 +291,7 @@ pub fn define_app_delegate() -> *const Class {
                 f: Some(Box::new(f)),
                 event_handler: None,
                 context: None,
+                eagl_context: eagl_context_obj,
                 gles2,
             });
             let payload_ptr = Box::into_raw(payload) as *mut std::ffi::c_void;
@@ -313,6 +320,7 @@ pub fn define_app_delegate() -> *const Class {
                     as i32
             ];
             let _: () = msg_send![glk_view_obj, setContext: eagl_context_obj];
+            let _: () = msg_send![class!(EAGLContext), setCurrentContext: eagl_context_obj];
             let _: () = msg_send![glk_view_obj, setDelegate: glk_view_dlg_obj];
             let _: () = msg_send![glk_view_obj, setEnableSetNeedsDisplay: NO];
             let _: () = msg_send![glk_view_obj, setUserInteractionEnabled: YES];
