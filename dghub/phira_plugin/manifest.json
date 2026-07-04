@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "sdk": "1",
   "author": "pingfanH",
-  "description": "把 Phira 的 判定映射为电击触发。",
+  "description": "把 Phira 的 判定映射为电击触发。需要下载定制过的phira",
   "config_schema": [
     {
         "section": "信息",
@@ -28,7 +28,7 @@
       "fields": [
         { "key": "miss_enable", "type": "bool", "label": "Miss 触发", "default": true },
         { "key": "miss_strength", "type": "percent", "label": "Miss 强度", "default": 60 },
-        { "key": "miss_duration", "type": "duration", "label": "Miss 时长", "default": 1.5 },
+        { "key": "miss_duration", "type": "duration", "label": "Miss 时长", "default": 0.6 },
         { "key": "miss_preset", "type": "preset", "label": "Miss 波形", "default": "CS2-受伤" }
       ]
     },
@@ -36,21 +36,21 @@
       "section": "Bad",
       "fields": [
         { "key": "bad_enable", "type": "bool", "label": "Bad 触发", "default": true },
-        { "key": "bad_strength", "type": "percent", "label": "Bad 强度", "default": 35 },
-        { "key": "bad_duration", "type": "duration", "label": "Bad 时长", "default": 1.0 },
+        { "key": "bad_strength", "type": "percent", "label": "Bad 强度", "default": 50 },
+        { "key": "bad_duration", "type": "duration", "label": "Bad 时长", "default": 0.5 },
         { "key": "bad_preset", "type": "preset", "label": "Bad 波形", "default": "CS2-受伤" }
       ]
     },
     {
       "section": "Perfect / Good",
       "fields": [
-        { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": false },
-        { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 20 },
-        { "key": "good_duration", "type": "duration", "label": "Good 时长", "default": 1.0 },
+        { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": true },
+        { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 30 },
+        { "key": "good_duration", "type": "duration", "label": "Good 时长", "default": 0.4 },
         { "key": "good_preset", "type": "preset", "label": "Good 波形", "default": "" },
         { "key": "perfect_enable", "type": "bool", "label": "Perfect 触发", "default": false },
         { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 },
-        { "key": "perfect_duration", "type": "duration", "label": "Perfect 时长", "default": 1.0 },
+        { "key": "perfect_duration", "type": "duration", "label": "Perfect 时长", "default": 0.3 },
         { "key": "perfect_preset", "type": "preset", "label": "Perfect 波形", "default": "" }
       ]
     }

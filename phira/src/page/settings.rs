@@ -412,7 +412,9 @@ fn dghub_channel_label(value: &str) -> &'static str {
 
 fn next_dghub_indicator_style(value: &str) -> String {
     match value.trim().to_ascii_lowercase().as_str() {
-        "bar" => "ring",
+        "ring" => "bar",
+        "bar" => "hidden",
+        "hidden" => "ring",
         _ => "bar",
     }
     .to_owned()
@@ -421,6 +423,7 @@ fn next_dghub_indicator_style(value: &str) -> String {
 fn dghub_indicator_style_label(value: &str) -> &'static str {
     match value.trim().to_ascii_lowercase().as_str() {
         "bar" => "横条",
+        "hidden" => "隐藏",
         _ => "圆环",
     }
 }
@@ -456,6 +459,24 @@ fn dghub_preset_button(value: &str) -> ChooseButton {
     ChooseButton::new()
         .with_options(dghub_preset_options())
         .with_selected(dghub_preset_index(value))
+}
+
+fn touch_u32_slider(slider: &mut Slider, touch: &Touch, t: f32, value: &mut u32) -> Option<bool> {
+    let mut current = *value as f32;
+    let result = slider.touch(touch, t, &mut current);
+    if matches!(result, Some(true)) {
+        *value = current.round().clamp(0., 100.) as u32;
+    }
+    result
+}
+
+fn touch_f64_slider(slider: &mut Slider, touch: &Touch, t: f32, value: &mut f64) -> Option<bool> {
+    let mut current = *value as f32;
+    let result = slider.touch(touch, t, &mut current);
+    if matches!(result, Some(true)) {
+        *value = (current as f64).clamp(0., 3.);
+    }
+    result
 }
 
 #[inline]
@@ -1110,24 +1131,25 @@ struct DghubList {
     reconnect_btn: DRectButton,
     use_phira_btn: DRectButton,
     indicator_style_btn: DRectButton,
+    clear_strength_on_pause_btn: DRectButton,
     miss_enable_btn: DRectButton,
-    miss_strength_btn: DRectButton,
-    miss_duration_btn: DRectButton,
+    miss_strength_slider: Slider,
+    miss_duration_slider: Slider,
     miss_preset_btn: ChooseButton,
     miss_channel_btn: DRectButton,
     bad_enable_btn: DRectButton,
-    bad_strength_btn: DRectButton,
-    bad_duration_btn: DRectButton,
+    bad_strength_slider: Slider,
+    bad_duration_slider: Slider,
     bad_preset_btn: ChooseButton,
     bad_channel_btn: DRectButton,
     good_enable_btn: DRectButton,
-    good_strength_btn: DRectButton,
-    good_duration_btn: DRectButton,
+    good_strength_slider: Slider,
+    good_duration_slider: Slider,
     good_preset_btn: ChooseButton,
     good_channel_btn: DRectButton,
     perf_enable_btn: DRectButton,
-    perf_strength_btn: DRectButton,
-    perf_duration_btn: DRectButton,
+    perf_strength_slider: Slider,
+    perf_duration_slider: Slider,
     perf_preset_btn: ChooseButton,
     perf_channel_btn: DRectButton,
     throttle_btn: DRectButton,
@@ -1152,24 +1174,25 @@ impl DghubList {
             reconnect_btn: b(),
             use_phira_btn: b(),
             indicator_style_btn: b(),
+            clear_strength_on_pause_btn: b(),
             miss_enable_btn: b(),
-            miss_strength_btn: b(),
-            miss_duration_btn: b(),
+            miss_strength_slider: Slider::new(0.0..100.0, 1.0),
+            miss_duration_slider: Slider::new(0.0..3.0, 0.1),
             miss_preset_btn: dghub_preset_button(&cfg.dghub_miss_preset),
             miss_channel_btn: b(),
             bad_enable_btn: b(),
-            bad_strength_btn: b(),
-            bad_duration_btn: b(),
+            bad_strength_slider: Slider::new(0.0..100.0, 1.0),
+            bad_duration_slider: Slider::new(0.0..3.0, 0.1),
             bad_preset_btn: dghub_preset_button(&cfg.dghub_bad_preset),
             bad_channel_btn: b(),
             good_enable_btn: b(),
-            good_strength_btn: b(),
-            good_duration_btn: b(),
+            good_strength_slider: Slider::new(0.0..100.0, 1.0),
+            good_duration_slider: Slider::new(0.0..3.0, 0.1),
             good_preset_btn: dghub_preset_button(&cfg.dghub_good_preset),
             good_channel_btn: b(),
             perf_enable_btn: b(),
-            perf_strength_btn: b(),
-            perf_duration_btn: b(),
+            perf_strength_slider: Slider::new(0.0..100.0, 1.0),
+            perf_duration_slider: Slider::new(0.0..3.0, 0.1),
             perf_preset_btn: dghub_preset_button(&cfg.dghub_perfect_preset),
             perf_channel_btn: b(),
             throttle_btn: b(),
@@ -1248,31 +1271,44 @@ impl DghubList {
             cfg.dghub_indicator_style = next_dghub_indicator_style(&cfg.dghub_indicator_style);
             return Ok(Some(true));
         }
+        sw!(clear_strength_on_pause_btn, dghub_clear_strength_on_pause);
         if cfg.dghub_use_phira_config {
+            macro_rules! sl {
+                ($slider:ident, $field:ident, u32) => {
+                    if let wt @ Some(_) = touch_u32_slider(&mut self.$slider, touch, t, &mut cfg.$field) {
+                        return Ok(wt);
+                    }
+                };
+                ($slider:ident, $field:ident, f64) => {
+                    if let wt @ Some(_) = touch_f64_slider(&mut self.$slider, touch, t, &mut cfg.$field) {
+                        return Ok(wt);
+                    }
+                };
+            }
             sw!(miss_enable_btn, dghub_miss_enable);
-            ti!(miss_strength_btn, "dms", &cfg.dghub_miss_strength.to_string());
-            ti!(miss_duration_btn, "dmd", &cfg.dghub_miss_duration.to_string());
+            sl!(miss_strength_slider, dghub_miss_strength, u32);
+            sl!(miss_duration_slider, dghub_miss_duration, f64);
             if self.miss_preset_btn.touch(touch, t) {
                 return Ok(Some(false));
             }
             ch!(miss_channel_btn, dghub_miss_channel);
             sw!(bad_enable_btn, dghub_bad_enable);
-            ti!(bad_strength_btn, "dbs", &cfg.dghub_bad_strength.to_string());
-            ti!(bad_duration_btn, "dbd", &cfg.dghub_bad_duration.to_string());
+            sl!(bad_strength_slider, dghub_bad_strength, u32);
+            sl!(bad_duration_slider, dghub_bad_duration, f64);
             if self.bad_preset_btn.touch(touch, t) {
                 return Ok(Some(false));
             }
             ch!(bad_channel_btn, dghub_bad_channel);
             sw!(good_enable_btn, dghub_good_enable);
-            ti!(good_strength_btn, "dgs", &cfg.dghub_good_strength.to_string());
-            ti!(good_duration_btn, "dgd", &cfg.dghub_good_duration.to_string());
+            sl!(good_strength_slider, dghub_good_strength, u32);
+            sl!(good_duration_slider, dghub_good_duration, f64);
             if self.good_preset_btn.touch(touch, t) {
                 return Ok(Some(false));
             }
             ch!(good_channel_btn, dghub_good_channel);
             sw!(perf_enable_btn, dghub_perfect_enable);
-            ti!(perf_strength_btn, "dps", &cfg.dghub_perfect_strength.to_string());
-            ti!(perf_duration_btn, "dpd", &cfg.dghub_perfect_duration.to_string());
+            sl!(perf_strength_slider, dghub_perfect_strength, u32);
+            sl!(perf_duration_slider, dghub_perfect_duration, f64);
             if self.perf_preset_btn.touch(touch, t) {
                 return Ok(Some(false));
             }
@@ -1392,79 +1428,79 @@ impl DghubList {
             render_title(ui, tl!("item-dghub-status"), Some(txt));
             self.reconnect_btn.render_text(ui, rr, t, tl!("item-dghub-reconnect"), 0.4, true);
         }
-        item! { render_title(ui, tl!("item-dghub-source"), None);
+        item! { render_title(ui, tl!("item-dghub-source"), Some(tl!("item-dghub-source-sub")));
         self.use_phira_btn.render_text(ui, rr, t, if cfg.dghub_use_phira_config { tl!("item-dghub-source-phira") } else { tl!("item-dghub-source-dghub") }, 0.35, cfg.dghub_use_phira_config); }
         item! { render_title(ui, tl!("item-dghub-indicator-style"), None);
         self.indicator_style_btn.render_text(ui, rr, t, dghub_indicator_style_label(&cfg.dghub_indicator_style), 0.4, false); }
+        item! { render_title(ui, tl!("item-dghub-clear-strength-on-pause"), Some(tl!("item-dghub-clear-strength-on-pause-sub")));
+        render_switch(ui, rr, t, &mut self.clear_strength_on_pause_btn, cfg.dghub_clear_strength_on_pause); }
         if cfg.dghub_use_phira_config {
             macro_rules! grade {
-                ($name:literal, $enable_btn:ident, $enable:ident, $strength_btn:ident, $strength:ident, $duration_btn:ident, $duration:ident, $preset_btn:ident, $preset:ident, $channel_btn:ident, $channel:ident) => {{
+                ($name:literal, $enable_btn:ident, $enable:ident, $strength_slider:ident, $strength:ident, $duration_slider:ident, $duration:ident, $preset_btn:ident, $preset:ident) => {{
                     item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub")), None);
                     render_switch(ui, rr, t, &mut self.$enable_btn, cfg.$enable); }
                     item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-strength")), None);
-                    self.$strength_btn.render_text(ui, rr, t, cfg.$strength.to_string(), 0.4, false); }
+                    self.$strength_slider.render(ui, rr, t, cfg.$strength as f32, cfg.$strength.to_string()); }
                     item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-duration")), None);
-                    self.$duration_btn.render_text(ui, rr, t, format!("{:.2}", cfg.$duration), 0.4, false); }
+                    self.$duration_slider.render(ui, rr, t, cfg.$duration as f32, format!("{:.1}", cfg.$duration)); }
                     item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-preset")), None);
                     self.$preset_btn.render(ui, rr, t); }
-                    item! { render_title(ui, format!("{} {}", $name, tl!("item-dghub-channel")), None);
-                    self.$channel_btn.render_text(ui, rr, t, dghub_channel_label(&cfg.$channel), 0.4, false); }
                 }};
             }
             grade!(
                 "Miss",
                 miss_enable_btn,
                 dghub_miss_enable,
-                miss_strength_btn,
+                miss_strength_slider,
                 dghub_miss_strength,
-                miss_duration_btn,
+                miss_duration_slider,
                 dghub_miss_duration,
                 miss_preset_btn,
-                dghub_miss_preset,
-                miss_channel_btn,
-                dghub_miss_channel
+                dghub_miss_preset
             );
             grade!(
                 "Bad",
                 bad_enable_btn,
                 dghub_bad_enable,
-                bad_strength_btn,
+                bad_strength_slider,
                 dghub_bad_strength,
-                bad_duration_btn,
+                bad_duration_slider,
                 dghub_bad_duration,
                 bad_preset_btn,
-                dghub_bad_preset,
-                bad_channel_btn,
-                dghub_bad_channel
+                dghub_bad_preset
             );
             grade!(
                 "Good",
                 good_enable_btn,
                 dghub_good_enable,
-                good_strength_btn,
+                good_strength_slider,
                 dghub_good_strength,
-                good_duration_btn,
+                good_duration_slider,
                 dghub_good_duration,
                 good_preset_btn,
-                dghub_good_preset,
-                good_channel_btn,
-                dghub_good_channel
+                dghub_good_preset
             );
             grade!(
                 "Perfect",
                 perf_enable_btn,
                 dghub_perfect_enable,
-                perf_strength_btn,
+                perf_strength_slider,
                 dghub_perfect_strength,
-                perf_duration_btn,
+                perf_duration_slider,
                 dghub_perfect_duration,
                 perf_preset_btn,
-                dghub_perfect_preset,
-                perf_channel_btn,
-                dghub_perfect_channel
+                dghub_perfect_preset
             );
             item! { render_title(ui, tl!("item-dghub-throttle"), None);
             self.throttle_btn.render_text(ui, rr, t, cfg.dghub_throttle_ms.to_string(), 0.4, false); }
+            item! { render_title(ui, format!("Miss {}", tl!("item-dghub-channel")), None);
+            self.miss_channel_btn.render_text(ui, rr, t, dghub_channel_label(&cfg.dghub_miss_channel), 0.4, false); }
+            item! { render_title(ui, format!("Bad {}", tl!("item-dghub-channel")), None);
+            self.bad_channel_btn.render_text(ui, rr, t, dghub_channel_label(&cfg.dghub_bad_channel), 0.4, false); }
+            item! { render_title(ui, format!("Good {}", tl!("item-dghub-channel")), None);
+            self.good_channel_btn.render_text(ui, rr, t, dghub_channel_label(&cfg.dghub_good_channel), 0.4, false); }
+            item! { render_title(ui, format!("Perfect {}", tl!("item-dghub-channel")), None);
+            self.perf_channel_btn.render_text(ui, rr, t, dghub_channel_label(&cfg.dghub_perfect_channel), 0.4, false); }
             self.miss_preset_btn.render_top(ui, t, 1.);
             self.bad_preset_btn.render_top(ui, t, 1.);
             self.good_preset_btn.render_top(ui, t, 1.);

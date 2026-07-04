@@ -16,7 +16,9 @@ use prpr::{
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::{
+    collections::HashSet,
     net::{IpAddr, Ipv4Addr, UdpSocket},
+    process::Command,
     sync::{atomic::AtomicU32, atomic::AtomicU8, atomic::Ordering, Arc, Mutex},
 };
 use tokio::{
@@ -89,7 +91,13 @@ struct DghubSession {
     host: String,
     port: u16,
     token: Option<String>,
-    tx: Arc<Mutex<Option<mpsc::UnboundedSender<Grade>>>>,
+    tx: Arc<Mutex<Option<mpsc::UnboundedSender<DghubCommand>>>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum DghubCommand {
+    Grade(Grade),
+    ClearStrength,
 }
 
 /// 消费所有待处理事件。游戏线程每帧调用。
@@ -419,14 +427,22 @@ impl Mapping {
 
 /// 游戏线程持有的句柄：提供共享 sender 供 build_update_fn 发送判定。
 pub struct DghubHandle {
-    tx: Arc<Mutex<Option<mpsc::UnboundedSender<Grade>>>>,
+    tx: Arc<Mutex<Option<mpsc::UnboundedSender<DghubCommand>>>>,
 }
 
 impl DghubHandle {
     /// 发送一条判定（若后台任务存活）。
     fn send(&self, g: Grade) -> bool {
         if let Some(tx) = self.tx.lock().unwrap().as_ref() {
-            tx.send(g).is_ok()
+            tx.send(DghubCommand::Grade(g)).is_ok()
+        } else {
+            false
+        }
+    }
+
+    fn clear_strength(&self) -> bool {
+        if let Some(tx) = self.tx.lock().unwrap().as_ref() {
+            tx.send(DghubCommand::ClearStrength).is_ok()
         } else {
             false
         }
@@ -438,7 +454,7 @@ impl DghubHandle {
 /// 必须在 tokio runtime 上下文中调用（phira 启动时已 `rt.enter()`）。
 /// 把连接事件推入 [`drain_events`] 全局队列。
 fn spawn_with_scan(host: String, port: u16, token: Option<String>, scan_on_failure: bool) -> DghubHandle {
-    let tx_shared: Arc<Mutex<Option<mpsc::UnboundedSender<Grade>>>> = Arc::new(Mutex::new(None));
+    let tx_shared: Arc<Mutex<Option<mpsc::UnboundedSender<DghubCommand>>>> = Arc::new(Mutex::new(None));
     let status: Arc<AtomicU8> = Arc::new(AtomicU8::new(STATUS_CONNECTING));
     DGHUB_CONNECTION_STATUS.store(STATUS_CONNECTING, Ordering::Relaxed);
 
@@ -468,7 +484,7 @@ async fn run_with_optional_scan(
     port: u16,
     token: Option<String>,
     mapping: Mapping,
-    rx: &mut mpsc::UnboundedReceiver<Grade>,
+    rx: &mut mpsc::UnboundedReceiver<DghubCommand>,
     status: &AtomicU8,
     scan_on_failure: bool,
 ) {
@@ -480,6 +496,7 @@ async fn run_with_optional_scan(
             ever_connected |= was_connected;
             warn!("dghub: session error: {err:?}");
             if scan_on_failure && !was_connected {
+                DGHUB_CONNECTION_STATUS.store(STATUS_CONNECTING, Ordering::Relaxed);
                 DGHUB_EVENTS.lock().unwrap().push(DghubEvent::Scanning);
                 if let Some((scan_host, scan_port)) = scan_lan().await {
                     info!("dghub: scan found -> {scan_host}:{scan_port}");
@@ -513,7 +530,7 @@ async fn run_retry_latest_token(
     port: u16,
     token: Option<String>,
     mapping: Mapping,
-    rx: &mut mpsc::UnboundedReceiver<Grade>,
+    rx: &mut mpsc::UnboundedReceiver<DghubCommand>,
     status: &AtomicU8,
 ) -> Result<()> {
     let has_manual_token = token.is_some();
@@ -526,12 +543,88 @@ async fn run_retry_latest_token(
     }
 }
 
-fn local_ipv4() -> Option<Ipv4Addr> {
+fn local_ipv4_addrs() -> Vec<Ipv4Addr> {
+    let mut ips = Vec::new();
+
+    if let Some(ip) = default_route_ipv4() {
+        push_local_ipv4(&mut ips, ip);
+    }
+
+    collect_command_ipv4_addrs(&mut ips, "ip", &["-o", "-4", "addr", "show", "scope", "global"]);
+    collect_command_ipv4_addrs(&mut ips, "ifconfig", &[]);
+
+    ips
+}
+
+fn default_route_ipv4() -> Option<Ipv4Addr> {
     let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
     socket.connect((Ipv4Addr::new(8, 8, 8, 8), 80)).ok()?;
     match socket.local_addr().ok()?.ip() {
-        IpAddr::V4(ip) if !ip.is_loopback() => Some(ip),
-        _ => None,
+        IpAddr::V4(ip) => Some(ip),
+        IpAddr::V6(_) => None,
+    }
+}
+
+fn push_local_ipv4(ips: &mut Vec<Ipv4Addr>, ip: Ipv4Addr) {
+    if ip.is_loopback() || !ip.is_private() || ips.contains(&ip) {
+        return;
+    }
+    ips.push(ip);
+}
+
+fn collect_command_ipv4_addrs(ips: &mut Vec<Ipv4Addr>, program: &str, args: &[&str]) {
+    let Ok(output) = Command::new(program).args(args).output() else {
+        return;
+    };
+    if !output.status.success() {
+        return;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    collect_ipv4_addrs_from_text(ips, &text);
+}
+
+fn collect_ipv4_addrs_from_text(ips: &mut Vec<Ipv4Addr>, text: &str) {
+    for line in text.lines() {
+        let mut next_is_inet = false;
+        for token in line.split_whitespace() {
+            if next_is_inet {
+                if let Some(ip) = parse_ipv4_token(token) {
+                    push_local_ipv4(ips, ip);
+                }
+                next_is_inet = false;
+            } else {
+                next_is_inet = token == "inet";
+            }
+        }
+    }
+}
+
+fn parse_ipv4_token(token: &str) -> Option<Ipv4Addr> {
+    let token = token.trim_start_matches("addr:");
+    token.split('/').next()?.parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_private_ipv4_from_ifconfig_and_ip_addr_output() {
+        let sample = r#"
+en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+    inet6 fe80::ca2:fa71:fde:a54e%en0 prefixlen 64 secured scopeid 0xb
+    inet 192.168.4.168 netmask 0xffffff00 broadcast 192.168.4.255
+lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384
+    inet 127.0.0.1 netmask 0xff000000
+2: eth0    inet 172.19.0.2/16 brd 172.19.255.255 scope global eth0
+3: wlan0   inet addr:10.0.1.23  Bcast:10.0.1.255  Mask:255.255.255.0
+4: public  inet 8.8.8.8/24 brd 8.8.8.255 scope global public
+"#;
+        let mut ips = Vec::new();
+
+        collect_ipv4_addrs_from_text(&mut ips, sample);
+
+        assert_eq!(ips, vec![Ipv4Addr::new(192, 168, 4, 168), Ipv4Addr::new(172, 19, 0, 2), Ipv4Addr::new(10, 0, 1, 23),]);
     }
 }
 
@@ -564,15 +657,21 @@ async fn probe_device(host: String) -> Option<String> {
 
 fn current_segment_hosts() -> Vec<String> {
     let mut hosts = vec!["127.0.0.1".to_owned()];
-    let Some(local) = local_ipv4() else {
+    let mut seen = HashSet::from(["127.0.0.1".to_owned()]);
+    let locals = local_ipv4_addrs();
+    let local_ip_labels = locals.iter().map(ToString::to_string).collect::<Vec<_>>();
+    log_ip_list("local interface ips", &local_ip_labels);
+    if locals.is_empty() {
         return hosts;
-    };
-    let octets = local.octets();
+    }
 
-    for it in 1u8..=254 {
-        let host = format!("{}.{}.{}.{}", octets[0], octets[1], octets[2], it);
-        if !hosts.contains(&host) {
-            hosts.push(host);
+    for local in locals {
+        let octets = local.octets();
+        for it in 1u8..=254 {
+            let host = format!("{}.{}.{}.{}", octets[0], octets[1], octets[2], it);
+            if seen.insert(host.clone()) {
+                hosts.push(host);
+            }
         }
     }
     hosts
@@ -692,26 +791,26 @@ fn hello_message(token: &str) -> Value {
                 { "section": "Miss", "fields": [
                     { "key": "miss_enable", "type": "bool", "label": "Miss 触发", "default": true },
                     { "key": "miss_strength", "type": "percent", "label": "Miss 强度", "default": 60 },
-                    { "key": "miss_duration", "type": "duration", "label": "Miss 时长", "default": 1.5 },
+                    { "key": "miss_duration", "type": "duration", "label": "Miss 时长", "default": 0.6 },
                     { "key": "miss_preset", "type": "preset", "label": "Miss 波形", "default": "CS2-受伤" },
                     { "key": "miss_channel", "type": "channel", "label": "Miss 通道", "default": "both" }
                 ]},
                 { "section": "Bad", "fields": [
                     { "key": "bad_enable", "type": "bool", "label": "Bad 触发", "default": true },
-                    { "key": "bad_strength", "type": "percent", "label": "Bad 强度", "default": 35 },
-                    { "key": "bad_duration", "type": "duration", "label": "Bad 时长", "default": 1.0 },
+                    { "key": "bad_strength", "type": "percent", "label": "Bad 强度", "default": 50 },
+                    { "key": "bad_duration", "type": "duration", "label": "Bad 时长", "default": 0.5 },
                     { "key": "bad_preset", "type": "preset", "label": "Bad 波形", "default": "CS2-受伤" },
                     { "key": "bad_channel", "type": "channel", "label": "Bad 通道", "default": "both" }
                 ]},
                 { "section": "Perfect / Good", "fields": [
-                    { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": false },
-                    { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 20 },
-                    { "key": "good_duration", "type": "duration", "label": "Good 时长", "default": 1.0 },
+                    { "key": "good_enable", "type": "bool", "label": "Good 触发", "default": true },
+                    { "key": "good_strength", "type": "percent", "label": "Good 强度", "default": 30 },
+                    { "key": "good_duration", "type": "duration", "label": "Good 时长", "default": 0.4 },
                     { "key": "good_preset", "type": "preset", "label": "Good 波形", "default": "" },
                     { "key": "good_channel", "type": "channel", "label": "Good 通道", "default": "both" },
                     { "key": "perfect_enable", "type": "bool", "label": "Perfect 触发", "default": false },
                     { "key": "perfect_strength", "type": "percent", "label": "Perfect 强度", "default": 10 },
-                    { "key": "perfect_duration", "type": "duration", "label": "Perfect 时长", "default": 1.0 },
+                    { "key": "perfect_duration", "type": "duration", "label": "Perfect 时长", "default": 0.3 },
                     { "key": "perfect_preset", "type": "preset", "label": "Perfect 波形", "default": "" },
                     { "key": "perfect_channel", "type": "channel", "label": "Perfect 通道", "default": "both" }
                 ]}
@@ -725,7 +824,7 @@ async fn run(
     port: u16,
     token_override: Option<String>,
     mapping: Mapping,
-    rx: &mut mpsc::UnboundedReceiver<Grade>,
+    rx: &mut mpsc::UnboundedReceiver<DghubCommand>,
     status: &AtomicU8,
 ) -> Result<()> {
     let token = match token_override.filter(|s| !s.is_empty()) {
@@ -839,10 +938,23 @@ async fn run(
                     _ => {}
                 }
             }
-            grade = rx.recv() => {
-                let grade = match grade {
+            command = rx.recv() => {
+                let command = match command {
                     Some(g) => g,
                     None => return Ok(()), // 游戏线程 drop 了句柄 → 退出游戏
+                };
+                let grade = match command {
+                    DghubCommand::Grade(grade) => grade,
+                    DghubCommand::ClearStrength => {
+                        let msg = json!({
+                            "op": "set_strength",
+                            "channel": "both",
+                            "pct": 0,
+                        });
+                        debug!("dghub: clear strength");
+                        ws.send(Message::Text(msg.to_string())).await?;
+                        continue;
+                    }
                 };
                 let idx = grade as usize;
                 let throttle = Duration::from_millis(mapping.throttle_ms as u64);
@@ -874,6 +986,12 @@ pub fn build_update_fn(handle: DghubHandle) -> UpdateFn {
     let mut last_record = 0usize;
     Box::new(move |_t, res, judge| {
         res.dghub_max_strength = max_strength();
+        if res.dghub_clear_strength_request {
+            res.dghub_clear_strength_request = false;
+            if !handle.clear_strength() {
+                return;
+            }
+        }
         let (records, len) = {
             let records = judge.judgement_records.borrow();
             if last_record > records.len() {

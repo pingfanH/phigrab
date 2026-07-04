@@ -27,7 +27,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0D0D9CDCD7F802EE7E10A634 /* Phira.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Phira.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D0D9CDCD7F802EE7E10A634 /* Phigrab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Phigrab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE4BA9C829E02FBB00AFEF83 /* phira-main */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "phira-main"; path = "build/phira-main"; sourceTree = "<group>"; };
 		EEE852862F62F124001C0FF4 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = xcode/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		EEE8528E2F650E61001C0FF4 /* LocalSigning.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = LocalSigning.xcconfig; path = xcode/LocalSigning.xcconfig; sourceTree = "<group>"; };
@@ -40,7 +40,7 @@
 		183B84EE73DCF4BDEE1B01E9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0D0D9CDCD7F802EE7E10A634 /* Phira.app */,
+				0D0D9CDCD7F802EE7E10A634 /* Phigrab.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,7 +76,7 @@
 			);
 			name = phira;
 			productName = prpr;
-			productReference = 0D0D9CDCD7F802EE7E10A634 /* Phira.app */;
+			productReference = 0D0D9CDCD7F802EE7E10A634 /* Phigrab.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

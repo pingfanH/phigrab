@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec /usr/bin/env bash "$0" "$@"
+fi
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -195,7 +198,7 @@ ensure_dx_compat
 
 mkdir -p "$DIST_DIR"
 echo "[Phigrab] building APK via cargo quad-apk..."
-CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo quad-apk build --manifest-path "$MANIFEST" --release -p phira-main --out-dir "$DIST_DIR"
+CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo quad-apk build --manifest-path "$MANIFEST" --release --out-dir "$DIST_DIR"
 find "$CARGO_TARGET_DIR/android-artifacts/release/apk" -maxdepth 1 -type f -name "*.apk" -exec cp {} "$DIST_DIR/" \;
 
 echo "[Phigrab] Android artifacts:"

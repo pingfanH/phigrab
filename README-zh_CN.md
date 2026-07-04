@@ -1,13 +1,11 @@
-# Phira
+# Phigrab
 
-![Phira Showcase](https://phira.5wyxi.com/files/github-showcase.png)
+![Phira Showcase](./showcase.jpg)
 
 ## 下载
-
-- [GitHub Release](https://github.com/TeamFlos/phira/releases): 安卓、Windows、Linux
-- [616.sb 镜像源](https://616.sb/#phira): 仅 Android
-- [App Store](https://apps.apple.com/us/app/phira/id6447435864): iOS（美区商店）
-- ~~[.ipa Release](https://github.com/F-Unction/phira_ipa/releases): 苹果安装包~~
+- 安卓、ios. ~~~Windows、Linux、macos 在路上~~~
+- [GitHub Release](https://github.com/pingfanh/phigrab/releases)
+- [qq群229380808](https://qm.qq.com/q/FlGLR7Mfmy)
 
 ## 贡献
 

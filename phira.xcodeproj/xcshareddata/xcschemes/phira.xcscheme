@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2B547C4212CB6A4F740893B2"
-               BuildableName = "Phira.app"
+               BuildableName = "Phigrab.app"
                BlueprintName = "phira"
                ReferencedContainer = "container:phira.xcodeproj">
             </BuildableReference>
@@ -31,7 +31,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2B547C4212CB6A4F740893B2"
-            BuildableName = "Phira.app"
+            BuildableName = "Phigrab.app"
             BlueprintName = "phira"
             ReferencedContainer = "container:phira.xcodeproj">
          </BuildableReference>
@@ -71,7 +71,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2B547C4212CB6A4F740893B2"
-            BuildableName = "Phira.app"
+            BuildableName = "Phigrab.app"
             BlueprintName = "phira"
             ReferencedContainer = "container:phira.xcodeproj">
          </BuildableReference>
@@ -105,7 +105,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2B547C4212CB6A4F740893B2"
-            BuildableName = "Phira.app"
+            BuildableName = "Phigrab.app"
             BlueprintName = "phira"
             ReferencedContainer = "container:phira.xcodeproj">
          </BuildableReference>

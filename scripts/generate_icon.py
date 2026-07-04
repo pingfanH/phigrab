@@ -20,6 +20,7 @@ ANDROID_MIPMAP_SIZES = {
     "mipmap-xxhdpi": 144,
     "mipmap-xxxhdpi": 192,
 }
+IOS_APPICON_SIZE = 1024
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     default_input = repo_root / "assets" / "icon.png"
     default_output_dir = repo_root / "phira" / "icon"
     default_android_res_dir = repo_root / "phira-main" / "android-res"
+    default_ios_appicon_dir = repo_root / "xcode" / "Assets.xcassets" / "AppIcon.appiconset"
 
     parser = argparse.ArgumentParser(
         description=(
@@ -58,6 +60,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=default_android_res_dir,
         help=f"Android resource output directory (default: {default_android_res_dir})",
+    )
+    parser.add_argument(
+        "--ios-appicon-dir",
+        type=Path,
+        default=default_ios_appicon_dir,
+        help=f"iOS AppIcon.appiconset output directory (default: {default_ios_appicon_dir})",
     )
     return parser.parse_args()
 
@@ -95,10 +103,37 @@ def generate_android_icons(input_path: Path, output_dir: Path) -> None:
         print(f"Wrote {size}x{size} PNG to {output_path}")
 
 
+def generate_ios_app_icon(input_path: Path, output_dir: Path) -> None:
+    resample = getattr(Image, "Resampling", Image).LANCZOS
+    img = Image.open(input_path).convert("RGBA")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "icon1.png"
+    ImageOps.fit(img, (IOS_APPICON_SIZE, IOS_APPICON_SIZE), method=resample).convert("RGB").save(output_path, format="PNG")
+    contents = """{
+  "images" : [
+    {
+      "filename" : "icon1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
+"""
+    (output_dir / "Contents.json").write_text(contents, encoding="utf-8")
+    print(f"Wrote {IOS_APPICON_SIZE}x{IOS_APPICON_SIZE} PNG to {output_path}")
+
+
 def main() -> None:
     args = parse_args()
     generate_icon_bytes(args.input, args.output_dir, args.ext)
     generate_android_icons(args.input, args.android_res_dir)
+    generate_ios_app_icon(args.input, args.ios_appicon_dir)
 
 
 if __name__ == "__main__":

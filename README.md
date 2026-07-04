@@ -1,15 +1,14 @@
 # Phira
 
-![Phira Showcase](https://phira.5wyxi.com/files/github-showcase.png)
+![Phira Showcase](./showcase.jpg)
 
 [中文版本](./README-zh_CN.md)
 
-## Download
 
-- [GitHub Release](https://github.com/TeamFlos/phira/releases): For Android, Windows and Linux
-- [616.sb mirror](https://616.sb/#phira): Android only
-- [App Store](https://apps.apple.com/us/app/phira/id6447435864): For iOS
-- ~~[.ipa Release](https://github.com/F-Unction/phira_ipa/releases): For iOS~~
+## Download
+- android、ios. ~~~Windows、Linux、macos on the way~~~
+- [GitHub Release](https://github.com/pingfanh/phigrab/releases)
+- [qq group 229380808](https://qm.qq.com/q/FlGLR7Mfmy)
 
 ## Contribution
 

@@ -34,12 +34,13 @@ use prpr::{
     log,
     scene::{show_error, show_message},
     time::TimeManager,
-    ui::{FontArc, TextPainter},
+    ui::{FontArc, MessageHandle, TextPainter},
     Main,
 };
 use prpr_l10n::{set_prefered_locale, GLOBAL, LANGS};
 use scene::MainScene;
 use std::{
+    cell::RefCell,
     collections::VecDeque,
     sync::{mpsc, Mutex},
 };
@@ -109,13 +110,34 @@ pub fn save_data() -> Result<()> {
     Ok(())
 }
 
+thread_local! {
+    static DGHUB_SEARCH_MESSAGE: RefCell<Option<MessageHandle>> = const { RefCell::new(None) };
+}
+
+fn show_dghub_search_message() {
+    clear_dghub_search_message();
+    let handle = show_message("搜索中...").duration(15.).warn().handle();
+    DGHUB_SEARCH_MESSAGE.with(|it| {
+        *it.borrow_mut() = Some(handle);
+    });
+}
+
+fn clear_dghub_search_message() {
+    DGHUB_SEARCH_MESSAGE.with(|it| {
+        if let Some(mut handle) = it.borrow_mut().take() {
+            handle.cancel();
+        }
+    });
+}
+
 fn handle_dghub_events() {
     for ev in dghub::drain_events() {
         match ev {
             dghub::DghubEvent::Scanning => {
-                show_message("连接失败，正在扫描....").warn();
+                show_dghub_search_message();
             }
             dghub::DghubEvent::Connected { host, port } => {
+                clear_dghub_search_message();
                 let changed = {
                     let cfg = &mut get_data_mut().config;
                     if cfg.dghub_host != host || cfg.dghub_port != port {
@@ -134,9 +156,11 @@ fn handle_dghub_events() {
                 show_message(format!("已连接：{host}:{port}")).duration(1.5).ok();
             }
             dghub::DghubEvent::Disconnected(reason) => {
+                clear_dghub_search_message();
                 show_message(format!("已断开：{reason}。")).warn();
             }
             dghub::DghubEvent::ScanFailed => {
+                clear_dghub_search_message();
                 show_message("扫描失败。").warn();
             }
         }

@@ -122,23 +122,23 @@ fn render_dghub_channel_bar_indicator(ui: &mut Ui, indicator: &DghubIndicator) {
     let h = 0.028;
     let (center_x, center_y) = indicator.center;
     let r = Rect::new(center_x - w / 2., center_y - h / 2., w, h);
-    render_hud_text(ui, indicator.label, center_x, center_y - 0.068, 0.34, (0.5, 0.5), Color::new(1., 1., 1., alpha));
+    render_hud_text(ui, indicator.label, center_x, center_y - 0.068, 0.5, (0.5, 0.5), Color::new(1., 1., 1., alpha));
     ui.fill_rect(r, Color::new(1., 1., 1., 0.045));
     ui.fill_rect(Rect::new(r.x, r.y, r.w * level, r.h), Color::new(1., 1., 1., 0.76 * alpha));
     if level > 0. {
         ui.fill_rect(Rect::new(r.x + (r.w * level - 0.006).max(0.), r.y, 0.006, r.h), Color::new(1., 1., 1., 0.28 * alpha));
     }
-    render_hud_text(ui, format!("{value} / {max_strength}"), center_x, center_y + 0.068, 0.24, (0.5, 0.5), Color::new(1., 1., 1., alpha * 0.82));
+    render_hud_text(ui, format!("{value} / {max_strength}"), center_x, center_y + 0.068, 0.5, (0.5, 0.5), Color::new(1., 1., 1., alpha * 0.82));
 }
 
 fn render_dghub_channel_ring_indicator(ui: &mut Ui, indicator: &DghubIndicator) {
     let level = indicator.level.clamp(0., 1.);
     let max_strength = indicator.max_strength.max(1);
     let value = dghub_indicator_value(level, max_strength);
-    let alpha = 0.58 + level * 0.42;
-    let radius = 0.055;
+    let alpha = 0.7 + level * 0.42;
+    let radius = 0.07;
     let (center_x, center_y) = indicator.center;
-    render_hud_text(ui, indicator.label, center_x, center_y - 0.116, 0.34, (0.5, 0.5), Color::new(1., 1., 1., alpha));
+    render_hud_text(ui, indicator.label, center_x, center_y - 0.116, 0.5, (0.5, 0.5), Color::new(1., 1., 1., alpha));
     ui.stroke_circle(center_x, center_y, radius, 0.007, Color::new(1., 1., 1., 0.07));
     if level > 0. {
         ui.scope(|ui| {
@@ -147,8 +147,8 @@ fn render_dghub_channel_ring_indicator(ui: &mut Ui, indicator: &DghubIndicator) 
             ui.stroke_path(&Ui::loading_path(0., level * std::f32::consts::TAU, radius), 0.008, Color::new(1., 1., 1., 0.86 * alpha));
         });
     }
-    render_hud_text(ui, value.to_string(), center_x, center_y, 0.38, (0.5, 0.5), Color::new(1., 1., 1., alpha));
-    render_hud_text(ui, format!("{value} / {max_strength}"), center_x, center_y + 0.116, 0.24, (0.5, 0.5), Color::new(1., 1., 1., alpha * 0.82));
+    render_hud_text(ui, value.to_string(), center_x, center_y, 0.4, (0.5, 0.5), Color::new(1., 1., 1., alpha));
+    render_hud_text(ui, format!("{value} / {max_strength}"), center_x, center_y + 0.116, 0.4, (0.5, 0.5), Color::new(1., 1., 1., alpha * 0.82));
 }
 
 fn render_dghub_channel_indicator(ui: &mut Ui, indicator: DghubIndicator, style: &str) {
@@ -495,11 +495,24 @@ impl GameScene {
             if !self.music.paused() {
                 self.music.pause()?;
             }
-            tm.pause();
+            self.pause_time_manager(tm);
             #[cfg(target_env = "ohos")]
             miniquad::native::set_interceptor_state(false);
         }
         Ok(true)
+    }
+
+    fn clear_dghub_strength_on_pause(&mut self) {
+        if self.res.config.dghub_enable && self.res.config.dghub_clear_strength_on_pause {
+            self.dghub_indicator_until = [0.; 2];
+            self.dghub_indicator_level = [0.; 2];
+            self.res.dghub_clear_strength_request = true;
+        }
+    }
+
+    fn pause_time_manager(&mut self, tm: &mut TimeManager) {
+        tm.pause();
+        self.clear_dghub_strength_on_pause();
     }
 
     fn dghub_grade_config(&self, index: usize) -> (bool, u32, f64, &str) {
@@ -599,9 +612,9 @@ impl GameScene {
         } else if let Some(touch) = ui.ensure_touches().iter().find(|touch| self.pause_touch_hit(tm, touch)).cloned() {
             self.handle_pause_touch(tm, &touch)?;
         }
-        let show_dghub_indicators = self.res.config.dghub_enable;
         let dghub_indicator_levels = self.dghub_indicator_levels(tm.real_time());
         let dghub_indicator_style = self.res.config.dghub_indicator_style.clone();
+        let show_dghub_indicators = self.res.config.dghub_enable && dghub_indicator_style.trim().to_ascii_lowercase() != "hidden";
         let res = &mut self.res;
         let eps = 2e-2 / res.aspect_ratio;
         let top = -1. / res.aspect_ratio;
@@ -669,7 +682,7 @@ impl GameScene {
                     ui,
                     DghubIndicator {
                         label: "A",
-                        center: (-0.34, combo_y),
+                        center: (-0.34, combo_y + 0.05),
                         level: dghub_indicator_levels[0],
                         max_strength: res.dghub_max_strength[0],
                     },
@@ -679,7 +692,7 @@ impl GameScene {
                     ui,
                     DghubIndicator {
                         label: "B",
-                        center: (0.34, combo_y),
+                        center: (0.34, combo_y + 0.05),
                         level: dghub_indicator_levels[1],
                         max_strength: res.dghub_max_strength[1],
                     },
@@ -1113,7 +1126,7 @@ impl Scene for GameScene {
         if !tm.paused() {
             self.pause_rewind = None;
             self.music.pause()?;
-            tm.pause();
+            self.pause_time_manager(tm);
         }
         #[cfg(target_env = "ohos")]
         miniquad::native::set_interceptor_state(false);
@@ -1138,7 +1151,7 @@ impl Scene for GameScene {
             reset!(self, self.res, tm);
             self.state = state;
             tm.seek_to(self.exercise_range.start);
-            tm.pause();
+            self.pause_time_manager(tm);
             self.music.pause()?;
             #[cfg(target_env = "ohos")]
             miniquad::native::set_interceptor_state(false);
@@ -1158,7 +1171,7 @@ impl Scene for GameScene {
                     });
                     self.last_update_time = tm.real_time();
                     if self.first_in && self.mode == GameMode::Exercise {
-                        tm.pause();
+                        self.pause_time_manager(tm);
                         self.first_in = false;
                     }
                     tm.now()
@@ -1316,7 +1329,7 @@ impl Scene for GameScene {
             if !self.music.paused() {
                 self.music.pause()?;
             }
-            tm.pause();
+            self.pause_time_manager(tm);
             self.dead = true;
             #[cfg(target_env = "ohos")]
             miniquad::native::set_interceptor_state(false);
@@ -1324,8 +1337,7 @@ impl Scene for GameScene {
         }
         self.res.judge_line_color.a *= self.res.alpha;
         self.chart.update(&mut self.res);
-        let res = &mut self.res;
-        if res.config.interactive && is_key_pressed(KeyCode::Space) {
+        if self.res.config.interactive && is_key_pressed(KeyCode::Space) {
             if tm.paused() {
                 if matches!(self.state, State::Playing) {
                     self.music.play()?;
@@ -1335,9 +1347,10 @@ impl Scene for GameScene {
                 if !self.music.paused() {
                     self.music.pause()?;
                 }
-                tm.pause();
+                self.pause_time_manager(tm);
             }
         }
+        let res = &mut self.res;
         if Self::interactive(res, &self.state) {
             if is_key_pressed(KeyCode::Left) && res.config.use_keyboard {
                 res.time -= 1.;
