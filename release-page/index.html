@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Phigrab 发布页</title>
+  <meta name="description" content="Phigrab 下载与发布介绍，包含 DGHub 联动、局域网扫描、A/B 通道强度指示等功能。" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0d12;
+      --panel: rgba(255, 255, 255, 0.07);
+      --panel-strong: rgba(255, 255, 255, 0.12);
+      --text: #f5f7fb;
+      --muted: rgba(245, 247, 251, 0.72);
+      --soft: rgba(245, 247, 251, 0.5);
+      --line: rgba(255, 255, 255, 0.14);
+      --accent: #65d6a6;
+      --accent-2: #7fb7ff;
+      --danger: #ff8f8f;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .hero {
+      position: relative;
+      min-height: 88vh;
+      display: grid;
+      align-items: end;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(8, 10, 15, 0.9) 0%, rgba(8, 10, 15, 0.64) 48%, rgba(8, 10, 15, 0.25) 100%),
+        linear-gradient(180deg, rgba(8, 10, 15, 0.15) 0%, rgba(8, 10, 15, 0.88) 100%),
+        url("../showcase.jpg") center / cover no-repeat;
+      transform: scale(1.02);
+    }
+
+    .hero-inner {
+      position: relative;
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 72px 0 56px;
+    }
+
+    .nav {
+      position: absolute;
+      top: 28px;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--accent);
+      font-weight: 800;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-links a {
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .nav-links a:hover {
+      background: rgba(255, 255, 255, 0.09);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    h1 {
+      margin: 24px 0 16px;
+      max-width: 760px;
+      font-size: clamp(48px, 8vw, 92px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(17px, 2.2vw, 22px);
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 32px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-weight: 700;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button.primary {
+      color: #08110e;
+      background: var(--accent);
+    }
+
+    .button.secondary {
+      color: var(--text);
+      border-color: var(--line);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .button-icon {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 48px 0 72px;
+    }
+
+    section {
+      margin-top: 54px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 42px);
+      letter-spacing: 0;
+    }
+
+    .section-note {
+      max-width: 520px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .feature {
+      min-height: 160px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .feature strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .feature p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .downloads {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .download {
+      display: flex;
+      min-height: 100px;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .download.available {
+      border-color: rgba(101, 214, 166, 0.45);
+      background: rgba(101, 214, 166, 0.1);
+    }
+
+    .download.unavailable {
+      opacity: 0.58;
+    }
+
+    .download h3 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    .download p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .download a,
+    .download span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .download.available a {
+      background: var(--accent);
+      border-color: transparent;
+      color: #08110e;
+    }
+
+    .download span {
+      color: var(--soft);
+    }
+
+    .download.unavailable span {
+      cursor: not-allowed;
+    }
+
+    .release-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .asset-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .asset-link small {
+      color: var(--soft);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      counter-reset: step;
+    }
+
+    .step {
+      position: relative;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      counter-increment: step;
+    }
+
+    .step::before {
+      content: counter(step);
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      margin-bottom: 18px;
+      border-radius: 8px;
+      background: var(--panel-strong);
+      color: var(--accent-2);
+      font-weight: 800;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .notice {
+      padding: 18px 20px;
+      border: 1px solid rgba(255, 143, 143, 0.35);
+      border-radius: 8px;
+      background: rgba(255, 143, 143, 0.08);
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      color: var(--soft);
+    }
+
+    .footer-inner {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 28px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 14px;
+    }
+
+    @media (max-width: 880px) {
+      .hero {
+        min-height: 760px;
+      }
+
+      .nav {
+        position: relative;
+        top: auto;
+        margin-bottom: 64px;
+      }
+
+      .features,
+      .downloads,
+      .steps {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        display: grid;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .hero-inner,
+      main,
+      .footer-inner {
+        width: min(100% - 28px, 1120px);
+      }
+
+      .nav {
+        align-items: flex-start;
+      }
+
+      .nav-links {
+        gap: 6px;
+      }
+
+      .hero-actions .button {
+        width: 100%;
+      }
+
+      .asset-link {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <nav class="nav" aria-label="主导航">
+        <a class="brand" href="https://github.com/pingfanH/phigrab">
+          <span>Phigrab</span>
+        </a>
+        <div class="nav-links">
+          <!-- <a href="#features">功能</a> -->
+          <a href="#download">下载</a>
+          <a href="#guide">教程</a>
+          <a href="http://dghub.top/">DGHub</a>
+          <a href="https://qm.qq.com/q/FlGLR7Mfmy">QQ群</a>
+        </div>
+      </nav>
+
+      <span class="eyebrow">Phigrab v0.7.1 发布</span>
+      <h1>让Phira<br>与郊狼联动</h1>
+      <p class="lead">
+        Phigrab 在原版 Phira中加入外部连接能力，支持使用 DGHub 判定到强度映射、A/B 双通道配置和游玩中的实时强度指示。
+      </p>
+      <div class="hero-actions">
+        <a class="button primary" href="https://github.com/pingfanH/phigrab/releases/latest">下载最新版</a>
+        <a class="button secondary"   href="https://www.bilibili.com/video/BV1xrMM6dEsn">游玩视频</a>
+        <a class="button secondary" href="https://github.com/pingfanH/phigrab">
+          <img class="button-icon" src="github.png" alt="" aria-hidden="true" />
+          <span>查看源码</span>
+        </a>
+        <a class="button secondary" href="http://dghub.top/">DGHub</a>
+         <a class="button secondary" href="https://www.bilibili.com/video/BV1gM9tBFEmJ">DGHub教程</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- <section id="features">
+      <div class="section-head">
+        <h2>新增内容</h2>
+        <p class="section-note">面向 DGHub 联动和跨设备使用做了重点增强，同时保留 Phira 的本体游玩体验。</p>
+      </div>
+      <div class="features">
+        <article class="feature">
+          <strong>DGHub 外部连接</strong>
+          <p>进入应用后优先使用缓存连接，失败后自动扫描局域网设备，并从 8000 到 8003 端口查找 DGHub。</p>
+        </article>
+        <article class="feature">
+          <strong>判定强度映射</strong>
+          <p>Miss、Bad、Good、Perfect 可分别设置开启状态、强度、时长、预设和 A/B/双通道输出。</p>
+        </article>
+        <article class="feature">
+          <strong>A/B 通道指示器</strong>
+          <p>游玩界面常驻显示 A/B 通道强度，可选择圆圈或横条样式，并支持在设置中隐藏。</p>
+        </article>
+        <article class="feature">
+          <strong>局域网扫描提示</strong>
+          <p>连接失败时显示连接中和搜索中提示，扫描成功或失败都会给出明确反馈。</p>
+        </article>
+        <article class="feature">
+          <strong>角色与主页定制</strong>
+          <p>内置山田凉角色展示和简介页面，主页视觉资源固定本地加载，减少远程依赖。</p>
+        </article>
+        <article class="feature">
+          <strong>发布包适配</strong>
+          <p>配置了 Phigrab 应用名称、包名、图标和桌面/移动端构建脚本，便于持续发布。</p>
+        </article>
+      </div>
+    </section> -->
+
+    <section id="download">
+      <div class="section-head">
+        <h2>下载</h2>
+        <!-- <p class="section-note">优先从 GitHub Release 下载。若列表没有显示，说明网络阻止了 GitHub API，使用下方备用链接即可。</p> -->
+      </div>
+
+      <div class="downloads">
+        <article class="download available">
+          <div>
+            <h3>Android</h3>
+          </div>
+          <a href="https://github.com/pingfanH/phigrab/releases/download/v0.7.1/Phigrab.apk">下载 APK</a>
+        </article>
+        <article class="download unavailable">
+          <div>
+            <h3>iOS</h3>
+          </div>
+          <span>暂不可用</span>
+        </article>
+        <article class="download unavailable">
+          <div>
+            <h3>Windows</h3>
+          </div>
+          <span>暂不可用</span>
+        </article>
+        <article class="download unavailable">
+          <div>
+            <h3>macOS / Linux</h3>
+          </div>
+          <span>暂不可用</span>
+        </article>
+      </div>
+
+      <div id="latest-assets" class="release-list" aria-live="polite">
+        <a class="asset-link" href="https://github.com/pingfanH/phigrab/releases/latest">
+          <span>GitHub Release</span>
+          <small>打开完整下载列表</small>
+        </a>
+      </div>
+    </section>
+
+    <section id="guide">
+      <div class="section-head">
+        <h2>使用步骤</h2>
+        <p class="section-note">DGHub 联动需要 Phigrab 和开启 DGHub 的设备处于同一局域网下。</p>
+      </div>
+      <div class="steps">
+        <article class="step">
+          <strong>安装 Phigrab</strong>
+          <p>从 Release 下载适合设备的安装包。Android 可直接安装 APK，iOS 需处理签名。</p>
+        </article>
+        <article class="step">
+          <strong>启动 DGHub</strong>
+          <p>并连接郊狼设备,确认 DGHub 设备和当前设备在同一 Wi-Fi 或可互通网络下，并检查防火墙设置。如未安装请下载<a style="color: #7fb7ff;" href="http://dghub.top/">Dghub</a></p>
+        </article>
+        <article class="step">
+          <strong>开启外部连接</strong>
+          <p>在phigrab设置中开启外部连接。如果无效请检查dghub是否连接设备成功,并点击phigrab设置中的重新连接</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="notice">
+        获取更新或咨询问题可以加入 QQ 群 229380808。DGHub 相关说明请在 DGHub 中查看。项目为社区分支，原项目版权归原作者与贡献者所有。
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>制作 pingfanh</span>
+      <span>
+        <a href="https://github.com/pingfanH">GitHub</a>
+        ·
+        <a href="https://github.com/pingfanH/phigrab">phigrab</a>
+        ·
+        <a href="http://dghub.top/">DGHub</a>
+      </span>
+    </div>
+  </footer>
+
+  <script>
+    const latestAssets = document.querySelector("#latest-assets");
+    const repo = "pingfanH/phigrab";
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes)) return "";
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit += 1;
+      }
+      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    async function loadLatestAssets() {
+      try {
+        const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+          headers: { Accept: "application/vnd.github+json" },
+        });
+        if (!response.ok) return;
+        const release = await response.json();
+        if (!Array.isArray(release.assets) || release.assets.length === 0) return;
+        latestAssets.replaceChildren(
+          ...release.assets.map((asset) => {
+            const link = document.createElement("a");
+            link.className = "asset-link";
+            link.href = asset.browser_download_url;
+            link.innerHTML = `<span>${asset.name}</span><small>${formatBytes(asset.size)}</small>`;
+            return link;
+          })
+        );
+      } catch (_) {
+        // Keep the static fallback link.
+      }
+    }
+
+    loadLatestAssets();
+  </script>
+</body>
+</html>
